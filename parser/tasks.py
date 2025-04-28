@@ -1,6 +1,13 @@
 import logging
 from django.utils import timezone
 from .models import Internship
+from .hh_api_parser import fetch_hh_internships
+from .habr_parser import fetch_habr_internships
+from .superjob_parser import fetch_superjob_internships, SuperJobParser
+from .models import Website
+from rest_framework.decorators import api_view
+from rest_framework.response import Response
+from rest_framework import status
 
 logger = logging.getLogger('parser')
 
@@ -17,4 +24,195 @@ def run_hh_api_parser():
 def cleanup_old_internships():
     """Заглушка функции перемещения устаревших стажировок в архив"""
     logger.info("Функция архивации устаревших стажировок отключена")
-    return 0 
+    return 0
+
+def parse_hh_internships(keywords=None, area=None, city=None, max_pages=20):
+    """Функция для получения стажировок с HeadHunter
+    
+    Args:
+        keywords (str, optional): Ключевые слова для поиска
+        area (str, optional): ID региона
+        city (str, optional): Название города (имеет приоритет над area)
+        max_pages (int, optional): Максимальное количество страниц для загрузки. По умолчанию 20.
+    """
+    try:
+        hh_website, created = Website.objects.get_or_create(
+            name="HeadHunter",
+            defaults={"url": "https://hh.ru/"}
+        )
+        
+        from .hh_api_parser import HeadHunterAPI
+        client = HeadHunterAPI()
+        
+        internships = fetch_hh_internships(keywords=keywords, area=area, city=city, max_pages=max_pages)
+        
+        count_created = 0
+        count_updated = 0
+        
+        for internship_data in internships:
+            internship, is_created = client.create_internship(internship_data, hh_website)
+            if is_created:
+                count_created += 1
+            else:
+                count_updated += 1
+        
+        result_msg = f"Успешно обработано {len(internships)} стажировок с HeadHunter. Создано: {count_created}, обновлено: {count_updated}"
+        logger.info(result_msg)
+        return result_msg
+    
+    except Exception as e:
+        error_msg = f"Ошибка при выполнении задачи парсинга стажировок с HeadHunter: {str(e)}"
+        logger.error(error_msg)
+        return error_msg
+
+def parse_habr_internships(location_id=None, city=None, keywords=None, max_pages=10):
+    """Функция для получения стажировок с Habr Career
+    
+    Args:
+        location_id (str, optional): ID локации для поиска
+        city (str, optional): Название города для поиска (имеет приоритет над location_id)
+        keywords (str, optional): Ключевые слова для поиска вакансий
+        max_pages (int, optional): Максимальное количество страниц для загрузки. По умолчанию 10.
+    """
+    try:
+        habr_website, created = Website.objects.get_or_create(
+            name="Habr Career",
+            defaults={"url": "https://career.habr.com/"}
+        )
+        
+        from .habr_parser import HabrCareerAPI
+        client = HabrCareerAPI()
+        
+        internships = fetch_habr_internships(city=city, location_id=location_id, keywords=keywords, max_pages=max_pages)
+        
+        count_created = 0
+        count_updated = 0
+        
+        for internship_data in internships:
+            internship, is_created = client.create_internship(internship_data, habr_website)
+            if is_created:
+                count_created += 1
+            else:
+                count_updated += 1
+        
+        result_msg = f"Успешно обработано {len(internships)} стажировок с Habr Career. Создано: {count_created}, обновлено: {count_updated}"
+        logger.info(result_msg)
+        return result_msg
+    
+    except Exception as e:
+        error_msg = f"Ошибка при выполнении задачи парсинга стажировок с Habr Career: {str(e)}"
+        logger.error(error_msg)
+        return error_msg
+
+def parse_superjob_internships(town=None, city=None, keywords=None, max_pages=10):
+    """Функция для получения стажировок с SuperJob
+    
+    Args:
+        town (int, optional): ID города
+        city (str, optional): Название города (имеет приоритет над town)
+        keywords (str, optional): Ключевые слова для поиска
+        max_pages (int, optional): Максимальное количество страниц для загрузки. По умолчанию 10.
+    """
+    try:
+        superjob_website, created = Website.objects.get_or_create(
+            name="SuperJob",
+            defaults={"url": "https://www.superjob.ru/"}
+        )
+        
+        from .superjob_parser import SuperJobParser
+        client = SuperJobParser()
+        
+        internships = fetch_superjob_internships(city=city, keywords=keywords, max_pages=max_pages)
+        
+        count_created = 0
+        count_updated = 0
+        
+        for internship_data in internships:
+            internship, is_created = client.create_internship(internship_data, superjob_website)
+            if is_created:
+                count_created += 1
+            else:
+                count_updated += 1
+        
+        result_msg = f"Успешно обработано {len(internships)} стажировок с SuperJob. Создано: {count_created}, обновлено: {count_updated}"
+        logger.info(result_msg)
+        return result_msg
+    
+    except Exception as e:
+        error_msg = f"Ошибка при выполнении задачи парсинга стажировок с SuperJob: {str(e)}"
+        logger.error(error_msg)
+        return error_msg
+
+def parse_all_internships(city=None, keywords=None, max_pages=10):
+    """Функция для параллельного получения стажировок со всех источников
+    
+    Args:
+        city (str, optional): Название города для поиска
+        keywords (str, optional): Ключевые слова для поиска
+        max_pages (int, optional): Максимальное количество страниц для загрузки. По умолчанию 10.
+    """
+    logger.info(f"Запуск многопоточного парсинга стажировок")
+    
+    hh_params = {'city': city, 'keywords': keywords, 'max_pages': max_pages}
+    habr_params = {'city': city, 'keywords': keywords, 'max_pages': max_pages}
+    superjob_params = {'city': city, 'keywords': keywords, 'max_pages': max_pages}
+    
+    import concurrent.futures
+    results = {}
+    
+    with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
+        future_hh = executor.submit(parse_hh_internships, **hh_params)
+        future_habr = executor.submit(parse_habr_internships, **habr_params)
+        future_superjob = executor.submit(parse_superjob_internships, **superjob_params)
+        
+        results['hh'] = future_hh.result()
+        results['habr'] = future_habr.result()
+        results['superjob'] = future_superjob.result()
+    
+    return results
+
+@api_view(['POST'])
+def sync_webhook(request):
+    """Вебхук для синхронизации стажировок"""
+    city = request.data.get('city')
+    keywords = request.data.get('keywords')
+    max_pages = request.data.get('max_pages')
+    
+    if max_pages:
+        try:
+            max_pages = int(max_pages)
+        except (ValueError, TypeError):
+            max_pages = None
+    
+    params = {'city': city, 'keywords': keywords, 'max_pages': max_pages}
+    
+    import threading
+    
+    threads = []
+    
+    t1 = threading.Thread(target=parse_hh_internships, kwargs=params)
+    t2 = threading.Thread(target=parse_habr_internships, kwargs=params)
+    t3 = threading.Thread(target=parse_superjob_internships, kwargs=params)
+    
+    t1.start()
+    t2.start()
+    t3.start()
+    
+    threads.append(t1)
+    threads.append(t2)
+    threads.append(t3)
+    
+    message_parts = []
+    if city:
+        message_parts.append(f"для города {city}")
+    if keywords:
+        message_parts.append(f"по запросу '{keywords}'")
+    if max_pages:
+        message_parts.append(f"с лимитом {max_pages} страниц")
+    
+    message_suffix = f" {', '.join(message_parts)}" if message_parts else ""
+    
+    return Response({
+        'status': 'success', 
+        'message': f'Запущена многопоточная синхронизация стажировок{message_suffix}'
+    }, status=status.HTTP_202_ACCEPTED) 
