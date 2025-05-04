@@ -29,6 +29,25 @@ services:
       - db
     networks:
       - app-network
+  
+  web:
+    build: .
+    container_name: django_web
+    restart: always
+    command: >
+      sh -c "python manage.py migrate &&
+             python manage.py runserver 0.0.0.0:8000"
+    volumes:
+      - .:/app
+    ports:
+      - "8000:8000"
+    environment:
+      - DEBUG=True
+      - DATABASE_URL=postgres://postgres:postgres@db:5432/internship_parser_db
+    depends_on:
+      - db
+    networks:
+      - app-network
 
 networks:
   app-network:

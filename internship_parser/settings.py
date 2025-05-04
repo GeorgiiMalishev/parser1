@@ -140,6 +140,9 @@ PARSER_RUN_INTERVAL = 4 * 60 * 60  # 4 часа
 
 # Настройки API
 HH_API_TOKEN = os.getenv('HH_API_TOKEN')
+SUPERJOB_API_ID = os.getenv('SUPERJOB_API_ID')
+SUPERJOB_SECRET_KEY = os.getenv('SUPERJOB_SECRET_KEY')
+SUPERJOB_API_TOKEN = os.getenv('SUPERJOB_API_TOKEN', '')
 
 # Настройка логирования
 LOGGING = {

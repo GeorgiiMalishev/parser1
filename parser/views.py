@@ -1,11 +1,21 @@
 from django.shortcuts import render, redirect
 from django.views.generic import ListView, CreateView, UpdateView, DeleteView
 from django.urls import reverse_lazy
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponse
 from django.contrib import messages
 from .models import Website, Internship
 from .forms import WebsiteForm, InternshipFilterForm
 from .tasks import run_hh_api_parser
+from django.views.decorators.csrf import csrf_exempt
+from django.conf import settings
+from django.utils import timezone
+from dotenv import load_dotenv
+from .hh_api_parser import HeadHunterAPI
+import os
+import json
+
+# Загружаем переменные окружения из .env файла
+load_dotenv()
 
 def index(request):
     """Главная страница с вкладками"""
