@@ -14,7 +14,6 @@ from .hh_api_parser import HeadHunterAPI
 import os
 import json
 
-# Загружаем переменные окружения из .env файла
 load_dotenv()
 
 def index(request):

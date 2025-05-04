@@ -4,7 +4,7 @@ from rest_framework.response import Response
 from rest_framework import status, viewsets, filters
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.decorators import api_view
-from drf_spectacular.utils import extend_schema, OpenApiParameter
+from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiExample
 from drf_spectacular.types import OpenApiTypes
 import threading
 import concurrent.futures
@@ -12,6 +12,7 @@ import concurrent.futures
 from .hh_api_parser import fetch_hh_internships, HeadHunterAPI
 from .habr_parser import fetch_habr_internships, HabrCareerAPI
 from .superjob_parser import fetch_superjob_internships, SuperJobParser
+from .universal_parser import UniversalParser
 from .models import Website, Internship
 from .serializers import InternshipSerializer
 from .tasks import parse_hh_internships, parse_habr_internships, parse_superjob_internships
@@ -548,6 +549,95 @@ class FetchAllInternshipsAPIView(APIView):
         }
         
         return {k: v for k, v in fetch_params.items() if v is not None}
+
+
+class ParseUniversalURLAPIView(APIView):
+    """API endpoint для парсинга стажировки с произвольного URL"""
+
+    @extend_schema(
+        description="Запуск задачи парсинга стажировки по указанному URL.",
+        request={
+            'application/json': {
+                'type': 'object',
+                'properties': {
+                    'url': {'type': 'string', 'format': 'url'}
+                },
+                'required': ['url']
+            }
+        },
+        examples=[
+            OpenApiExample(
+                'Пример запроса',
+                summary='Запрос на парсинг стажировки с example.com',
+                value={'url': 'https://example.com/internship-details'}
+            ),
+        ],
+        responses={
+            202: {
+                "description": "Задача парсинга успешно запущена.",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "status": {"type": "string", "example": "success"},
+                                "message": {"type": "string", "example": "Задача парсинга URL запущена."}
+                            }
+                        }
+                    }
+                }
+            },
+            400: {"description": "Неверный запрос (например, отсутствует URL)"},
+            500: {"description": "Внутренняя ошибка сервера"}
+        }
+    )
+    def post(self, request):
+        """Запуск задачи парсинга стажировки по URL"""
+        url = request.data.get('url')
+
+        if not url:
+            return Response({
+                'status': 'error',
+                'message': 'Параметр "url" обязателен.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        if not url.startswith('http://') and not url.startswith('https://'):
+             return Response({
+                'status': 'error',
+                'message': 'Некорректный формат URL.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            logger.info(f"Запуск парсинга URL: {url} в отдельном потоке")
+
+            thread = threading.Thread(target=self._run_universal_parser, args=(url,))
+            thread.daemon = True
+            thread.start()
+
+            return Response({
+                'status': 'success',
+                'message': f'Задача парсинга URL {url} запущена.'
+            }, status=status.HTTP_202_ACCEPTED)
+
+        except Exception as e:
+            logger.error(f"Ошибка при запуске задачи парсинга URL {url}: {e}", exc_info=True)
+            return Response({
+                'status': 'error',
+                'message': 'Произошла внутренняя ошибка сервера при запуске задачи.'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    def _run_universal_parser(self, url):
+        """Выполнение парсинга URL в отдельном потоке"""
+        try:
+            parser = UniversalParser()
+            internship, created = parser.process_url(url)
+            if internship:
+                 status_msg = "создана" if created else "обновлена/найдена"
+                 logger.info(f"Парсинг URL {url} завершен. Стажировка '{internship.title}' {status_msg}.")
+            else:
+                 logger.warning(f"Парсинг URL {url} завершен, но стажировка не была создана или найдена.")
+        except Exception as e:
+            logger.error(f"Ошибка при выполнении задачи парсинга URL {url}: {e}", exc_info=True)
 
 
 @api_view(['POST'])

@@ -41,8 +41,10 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'parser',
     'drf_spectacular',
+    'rest_framework',
+    'django_apscheduler',
+    'parser.apps.ParserConfig',
 ]
 
 MIDDLEWARE = [
