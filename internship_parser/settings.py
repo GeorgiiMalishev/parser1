@@ -149,29 +149,56 @@ SUPERJOB_API_TOKEN = os.getenv('SUPERJOB_API_TOKEN', '')
 # Настройка логирования
 LOGGING = {
     'version': 1,
-    'disable_existing_loggers': False,
+    'disable_existing_loggers': False, 
     'formatters': {
-        'verbose': {
-            'format': '{levelname} {asctime} {module} {message}',
+        'simple': {
+            'format': '{levelname} {asctime} {name} {funcName} {lineno:d} {message}',
             'style': '{',
         },
     },
     'handlers': {
-        'file': {
+        'console': {
+            'level': 'DEBUG',
+            'class': 'logging.StreamHandler',
+            'formatter': 'simple',
+        },
+        'file_parser_main': { # Обработчик для основного лог-файла парсера
             'level': 'INFO',
             'class': 'logging.FileHandler',
-            'filename': os.path.join(BASE_DIR, 'logs/parser.log'),
-            'formatter': 'verbose',
+            'filename': os.path.join(BASE_DIR, 'logs/parser.log'), # Основной лог-файл
+            'formatter': 'simple',
+            'encoding': 'utf-8',
+        },
+        'file_debug': { # Отдельный файл для всех DEBUG логов, чтобы не засорять основной parser.log, если нужно
+            'level': 'DEBUG',
+            'class': 'logging.FileHandler',
+            'filename': os.path.join(BASE_DIR, 'logs/debug.log'), # Другой файл
+            'formatter': 'simple',
             'encoding': 'utf-8',
         },
     },
     'loggers': {
         'parser': {
-            'handlers': ['file'],
+            'handlers': ['console', 'file_parser_main', 'file_debug'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
+        'parser.superjob_parser': { # Явно добавляем для теста
+            'handlers': ['console', 'file_parser_main', 'file_debug'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
+        'django': {
+            'handlers': ['console'], # Django логи можно оставить только в консоли или в отдельном файле
             'level': 'INFO',
-            'propagate': True,
+            'propagate': False,
         },
     },
+    # Можно не использовать root, если для всех нужных логгеров явно указаны обработчики и propagate=False
+    # 'root': {
+    # 'handlers': ['console', 'file_debug'],
+    # 'level': 'DEBUG',
+    # },
 }
 
 os.makedirs(os.path.join(BASE_DIR, 'logs'), exist_ok=True)

@@ -2,7 +2,7 @@ import logging
 from django.utils import timezone
 from .models import Internship
 from .hh_api_parser import fetch_hh_internships
-from .habr_parser import fetch_habr_internships
+from .habr_parser import fetch_habr_career_internships
 from .superjob_parser import fetch_superjob_internships, SuperJobParser
 from .models import Website
 from rest_framework.decorators import api_view
@@ -42,19 +42,24 @@ def parse_hh_internships(keywords=None, area=None, city=None, max_pages=20):
         )
         
         from .hh_api_parser import HeadHunterAPI
-        client = HeadHunterAPI()
         
-        internships = fetch_hh_internships(keywords=keywords, area=area, city=city, max_pages=max_pages)
+        internships = fetch_hh_internships(
+            keywords=keywords, 
+            area=area, 
+            city=city, 
+            max_pages=max_pages,
+            website_obj=hh_website
+        )
         
         count_created = 0
         count_updated = 0
         
-        for internship_data in internships:
-            internship, is_created = client.create_internship(internship_data, hh_website)
-            if is_created:
-                count_created += 1
-            else:
-                count_updated += 1
+        for internship in internships:
+            if isinstance(internship, Internship):
+                if internship.id is None:
+                    count_created += 1
+                else:
+                    count_updated += 1
         
         result_msg = f"Успешно обработано {len(internships)} стажировок с HeadHunter. Создано: {count_created}, обновлено: {count_updated}"
         logger.info(result_msg)
@@ -69,7 +74,7 @@ def parse_habr_internships(location_id=None, city=None, keywords=None, max_pages
     """Функция для получения стажировок с Habr Career
     
     Args:
-        location_id (str, optional): ID локации для поиска
+        location_id (str, optional): ID локации для поиска (передается в fetch_habr_career_internships)
         city (str, optional): Название города для поиска (имеет приоритет над location_id)
         keywords (str, optional): Ключевые слова для поиска вакансий
         max_pages (int, optional): Максимальное количество страниц для загрузки. По умолчанию 10.
@@ -80,28 +85,24 @@ def parse_habr_internships(location_id=None, city=None, keywords=None, max_pages
             defaults={"url": "https://career.habr.com/"}
         )
         
-        from .habr_parser import HabrCareerAPI
-        client = HabrCareerAPI()
+    
+        processed_internships = fetch_habr_career_internships(
+            keywords_query=keywords, 
+            city_name=city, 
+            max_pages=max_pages, 
+            location_id=location_id,
+            website_obj=habr_website 
+        )
         
-        internships = fetch_habr_internships(city=city, location_id=location_id, keywords=keywords, max_pages=max_pages)
+        num_processed = len(processed_internships)
         
-        count_created = 0
-        count_updated = 0
-        
-        for internship_data in internships:
-            internship, is_created = client.create_internship(internship_data, habr_website)
-            if is_created:
-                count_created += 1
-            else:
-                count_updated += 1
-        
-        result_msg = f"Успешно обработано {len(internships)} стажировок с Habr Career. Создано: {count_created}, обновлено: {count_updated}"
+        result_msg = f"Успешно обработано {num_processed} стажировок с Habr Career. Детали создания/обновления см. в логах парсера."
         logger.info(result_msg)
         return result_msg
     
     except Exception as e:
         error_msg = f"Ошибка при выполнении задачи парсинга стажировок с Habr Career: {str(e)}"
-        logger.error(error_msg)
+        logger.error(error_msg, exc_info=True)
         return error_msg
 
 def parse_superjob_internships(town=None, city=None, keywords=None, max_pages=10):
@@ -119,21 +120,36 @@ def parse_superjob_internships(town=None, city=None, keywords=None, max_pages=10
             defaults={"url": "https://www.superjob.ru/"}
         )
         
-        from .superjob_parser import SuperJobParser
-        client = SuperJobParser()
-        
-        internships = fetch_superjob_internships(city=city, keywords=keywords, max_pages=max_pages)
+        internships = fetch_superjob_internships(city=city, keywords=keywords, max_pages=max_pages, website_obj=superjob_website)
         
         count_created = 0
         count_updated = 0
         
-        for internship_data in internships:
-            internship, is_created = client.create_internship(internship_data, superjob_website)
-            if is_created:
-                count_created += 1
+        client = SuperJobParser() 
+        for internship_data_dict in internships: 
+            if isinstance(internship_data_dict, Internship):
+                internship_obj = internship_data_dict
+                action = "Обновлена (уже объект)" 
+                is_created = False 
+                
+                existing_internship = Internship.objects.filter(external_id=internship_obj.external_id, source_website=superjob_website).first()
+                if existing_internship:
+                    pass
+                else:
+                    is_created = True 
+            
+            elif isinstance(internship_data_dict, dict):
+                internship_obj, is_created = client.create_internship(internship_data_dict, superjob_website)
             else:
-                count_updated += 1
-        
+                logger.warning(f"Неизвестный тип данных для стажировки SuperJob: {type(internship_data_dict)}")
+                continue
+
+            if internship_obj:
+                if is_created:
+                    count_created += 1
+                else:
+                    count_updated += 1
+            
         result_msg = f"Успешно обработано {len(internships)} стажировок с SuperJob. Создано: {count_created}, обновлено: {count_updated}"
         logger.info(result_msg)
         return result_msg

@@ -27,7 +27,14 @@ class UniversalParser:
             }
             response = requests.get(url, headers=headers, timeout=15)
             response.raise_for_status()
-            logger.info(f"Успешно загружен HTML с {url}")
+            
+            if response.encoding.lower() == 'iso-8859-1':
+                encoding = response.apparent_encoding
+                if encoding:
+                    response.encoding = encoding
+                    logger.info(f"Переопределена кодировка для {url}: {encoding} (была ISO-8859-1)")
+            
+            logger.info(f"Успешно загружен HTML с {url}, кодировка: {response.encoding}")
             return response.text
         except requests.exceptions.RequestException as e:
             logger.error(f"Ошибка при загрузке URL {url}: {e}")
@@ -92,7 +99,64 @@ class UniversalParser:
                 logger.error(f"Неожиданная ошибка при обработке JSON-LD на {url}: {e}", exc_info=True)
         return None
 
-    
+    def _extract_from_meta_tags(self, soup, url):
+        """Извлекает данные о стажировке из мета-тегов HTML-страницы."""
+        logger.info(f"Пытаемся извлечь данные из мета-тегов для {url}")
+        
+        result = {}
+        
+        meta_charset = soup.find('meta', charset=True)
+        encoding = None
+        if meta_charset:
+            encoding = meta_charset.get('charset')
+            logger.info(f"Обнаружена кодировка из meta charset: {encoding}")
+        
+        if not encoding:
+            meta_content_type = soup.find('meta', attrs={'http-equiv': 'Content-Type'})
+            if meta_content_type and 'charset=' in meta_content_type.get('content', ''):
+                encoding = meta_content_type.get('content').split('charset=')[-1].strip()
+                logger.info(f"Обнаружена кодировка из Content-Type: {encoding}")
+        
+        def ensure_text_encoding(text):
+            if not text:
+                return None
+            if encoding and encoding.lower() == 'utf-8':
+                return text
+            if encoding and any(ord(c) > 191 and ord(c) < 256 for c in text):
+                try:
+                    binary_data = text.encode('latin1')
+                    decoded_text = binary_data.decode(encoding)
+                    return decoded_text
+                except (UnicodeError, LookupError):
+                    logger.warning(f"Не удалось перекодировать текст с использованием {encoding}")
+            return text
+        
+        title_tag = soup.find('title')
+        if title_tag and title_tag.string:
+            title_text = title_tag.string.strip()
+            result['title'] = ensure_text_encoding(title_text)
+        
+        description_meta = soup.find('meta', attrs={'name': 'description'}) or soup.find('meta', attrs={'property': 'og:description'})
+        if description_meta and description_meta.get('content'):
+            desc_text = description_meta['content'].strip()
+            result['description'] = ensure_text_encoding(desc_text)
+        
+        company_meta = soup.find('meta', attrs={'property': 'og:site_name'})
+        if company_meta and company_meta.get('content'):
+            company_text = company_meta['content'].strip()
+            result['company'] = ensure_text_encoding(company_text)
+        
+        location_meta = soup.find('meta', attrs={'name': 'geo.placename'})
+        if location_meta and location_meta.get('content'):
+            location_text = location_meta['content'].strip()
+            result['city'] = ensure_text_encoding(location_text)
+        
+        if result.get('title') and (result.get('description') or result.get('company')):
+            logger.info(f"Удалось извлечь базовые данные из мета-тегов для {url}")
+            return result
+        
+        logger.warning(f"Недостаточно данных из мета-тегов для {url}")
+        return None
 
     def _clean_text(self, html_content):
         """Очищает HTML и возвращает основной текстовый контент с помощью html_text."""
@@ -104,6 +168,29 @@ class UniversalParser:
         except Exception as e:
             logger.error(f"Ошибка при очистке текста с помощью html_text: {e}", exc_info=True)
             return None
+
+    def _normalize_text(self, text):
+        """
+        Нормализует текст, исправляя проблемы с кодировкой и убирая некорректные символы.
+        """
+        if not text:
+            return None
+            
+        try:
+            if any('\xd0' in c or '\xd1' in c for c in text):
+                try:
+                    binary = text.encode('latin1')
+                    return binary.decode('utf-8')
+                except (UnicodeError, UnicodeDecodeError):
+                    pass
+                    
+            normalized = text.replace('\xa0', ' ')
+            normalized = ''.join(c for c in normalized if c.isprintable() or c.isspace())
+            
+            return normalized.strip()
+        except Exception as e:
+            logger.error(f"Ошибка при нормализации текста: {e}")
+            return text
 
     def parse_internship_details(self, html_content, url):
         """
@@ -124,22 +211,53 @@ class UniversalParser:
 
         if not llm_extracted_data or not isinstance(llm_extracted_data, dict):
             logger.error(f"LLM не смогла извлечь данные или вернула неверный формат для {url}. Ответ: {llm_extracted_data}")
-            return None
+            
+            meta_data = self._extract_from_meta_tags(BeautifulSoup(html_content, 'html.parser'), url)
+            if meta_data:
+                logger.info(f"Удалось извлечь метаданные из HTML для {url}")
+                llm_extracted_data = meta_data
+            else:
+                json_ld_data = self._extract_from_json_ld(BeautifulSoup(html_content, 'html.parser'), url)
+                if json_ld_data:
+                    logger.info(f"Удалось извлечь данные из JSON-LD для {url}")
+                    llm_extracted_data = json_ld_data
+                else:
+                    return None
         
         logger.info(f"LLM успешно вернула данные для {url}.")
 
+        required_fields = ['title', 'company', 'description']
+        missing_fields = [field for field in required_fields if not llm_extracted_data.get(field)]
+        
+        if missing_fields:
+            logger.warning(f"Отсутствуют обязательные поля ({', '.join(missing_fields)}) для {url}")
+            
+            if 'title' in missing_fields:
+                parsed_url = urlparse(url)
+                path_segments = parsed_url.path.strip('/').split('/')
+                if path_segments:
+                    llm_extracted_data['title'] = ' '.join(word.capitalize() for word in path_segments[-1].replace('-', ' ').replace('_', ' ').split())
+                    logger.info(f"Заполнено поле 'title' на основе URL: {llm_extracted_data['title']}")
+            
+            if 'company' in missing_fields:
+                parsed_url = urlparse(url)
+                domain = parsed_url.netloc
+                if domain:
+                    llm_extracted_data['company'] = domain.split('.')[0].capitalize()
+                    logger.info(f"Заполнено поле 'company' на основе URL: {llm_extracted_data['company']}")
+        
         extracted_data = {
             'url': url,
-            'title': llm_extracted_data.get('title'),
-            'company': llm_extracted_data.get('company'),
-            'position': llm_extracted_data.get('position'),
-            'salary': llm_extracted_data.get('salary'),
+            'title': self._normalize_text(llm_extracted_data.get('title')),
+            'company': self._normalize_text(llm_extracted_data.get('company')),
+            'position': self._normalize_text(llm_extracted_data.get('position')),
+            'salary': self._normalize_text(llm_extracted_data.get('salary')),
             'selection_start_date': llm_extracted_data.get('selection_start_date'), 
-            'duration': llm_extracted_data.get('duration'),
+            'duration': self._normalize_text(llm_extracted_data.get('duration')),
             'selection_end_date': llm_extracted_data.get('selection_end_date'), 
-            'description': llm_extracted_data.get('description'),
+            'description': self._normalize_text(llm_extracted_data.get('description')),
             'employment_type': llm_extracted_data.get('employment_type'),
-            'city': llm_extracted_data.get('city'),
+            'city': self._normalize_text(llm_extracted_data.get('city')),
             'external_id': None, 
             'is_archived': False, 
         }

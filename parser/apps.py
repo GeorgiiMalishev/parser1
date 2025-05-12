@@ -1,4 +1,6 @@
 from django.apps import AppConfig
+import os
+from django.conf import settings
 
 
 class ParserConfig(AppConfig):
@@ -7,19 +9,15 @@ class ParserConfig(AppConfig):
     verbose_name = 'Парсер стажировок'
     
     def ready(self):
-        """Настройка планировщика заданий при загрузке приложения"""
-        import os
-        if os.environ.get('RUN_MAIN', None) != 'true':
-            return
-            
-        self._setup_scheduler()
+        if not settings.DEBUG or os.environ.get('RUN_SCHEDULER', False):
+            from .scheduler import start_scheduler
+            start_scheduler()
     
     def _setup_scheduler(self):
         """Инициализация планировщика задач"""
         try:
             from django_apscheduler.jobstores import DjangoJobStore
             from apscheduler.schedulers.background import BackgroundScheduler
-            from django.conf import settings
             
             from .tasks import run_all_parsers, cleanup_old_internships
             

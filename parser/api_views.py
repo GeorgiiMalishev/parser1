@@ -8,12 +8,13 @@ from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiExampl
 from drf_spectacular.types import OpenApiTypes
 import threading
 import concurrent.futures
+from django.db.models import Q
 
 from .hh_api_parser import fetch_hh_internships, HeadHunterAPI
-from .habr_parser import fetch_habr_internships, HabrCareerAPI
+from .habr_parser import fetch_habr_career_internships, HabrCareerParser
 from .superjob_parser import fetch_superjob_internships, SuperJobParser
 from .universal_parser import UniversalParser
-from .models import Website, Internship
+from .models import Website, Internship, SearchQuery
 from .serializers import InternshipSerializer
 from .tasks import parse_hh_internships, parse_habr_internships, parse_superjob_internships
 
@@ -266,22 +267,26 @@ def internship_detail_api(request, pk):
 
 
 @api_view(['GET'])
-def search_internships_api(request):
-    """Поиск стажировок по ключевым словам"""
-    search_query = request.GET.get('q', '')
-    queryset = Internship.objects.filter(
-        is_archived=False
-    ).filter(
-        title__icontains=search_query
-    ) | Internship.objects.filter(
-        is_archived=False
-    ).filter(
-        description__icontains=search_query
-    ) | Internship.objects.filter(
-        is_archived=False
-    ).filter(
-        keywords__icontains=search_query
-    )
+def search_internships(request):
+    """API для поиска стажировок"""
+    city = request.query_params.get('city')
+    keywords = request.query_params.get('keywords')
+    
+    if city or keywords:
+        SearchQuery.record_search(city=city, keywords=keywords)
+    
+    queryset = Internship.objects.filter(is_archived=False)
+    
+    if city:
+        queryset = queryset.filter(city__icontains=city)
+    
+    if keywords:
+        queryset = queryset.filter(
+            Q(title__icontains=keywords) | 
+            Q(position__icontains=keywords) | 
+            Q(description__icontains=keywords) |
+            Q(keywords__icontains=keywords)
+        )
     
     serializer = InternshipSerializer(queryset, many=True)
     return Response(serializer.data)
@@ -414,6 +419,13 @@ class FetchAllInternshipsAPIView(APIView):
         try:
             logger.info(f"Выполнение получения стажировок со всех источников в многопоточном режиме")
             
+            city = params.get('city')
+            keywords = params.get('keywords')
+            max_pages = params.get('max_pages', 10)
+            
+            if city or keywords:
+                SearchQuery.record_search(city=city, keywords=keywords, max_pages=max_pages)
+            
             import threading
             thread = threading.Thread(target=self._run_all_parsers, args=(params,))
             thread.daemon = True
@@ -440,10 +452,23 @@ class FetchAllInternshipsAPIView(APIView):
             
             results = {'hh': None, 'habr': None, 'superjob': None}
             
+            hh_website, _ = Website.objects.get_or_create(
+                name="HeadHunter",
+                defaults={"url": "https://hh.ru/"}
+            )
+            habr_website, _ = Website.objects.get_or_create(
+                name="Habr Career",
+                defaults={"url": "https://career.habr.com/"}
+            )
+            superjob_website_obj, _ = Website.objects.get_or_create(
+                name="SuperJob",
+                defaults={"url": "https://www.superjob.ru/"}
+            )
+            
             def fetch_hh():
                 try:
                     internships = fetch_hh_internships(city=city, keywords=keywords, max_pages=max_pages)
-                    logger.info(f"Получено {len(internships)} стажировок с HeadHunter.")
+                    logger.info(f"Получено {len(internships)} словарей стажировок с HeadHunter.")
                     results['hh'] = internships
                 except Exception as e:
                     logger.error(f"Ошибка при получении стажировок с HeadHunter: {str(e)}")
@@ -451,18 +476,18 @@ class FetchAllInternshipsAPIView(APIView):
             
             def fetch_habr():
                 try:
-                    internships = fetch_habr_internships(city=city, keywords=keywords, max_pages=max_pages)
-                    logger.info(f"Получено {len(internships)} стажировок с Habr Career.")
+                    internships = fetch_habr_career_internships(city=city, keywords=keywords, max_pages=max_pages)
+                    logger.info(f"Получено {len(internships)} словарей стажировок с Habr Career.")
                     results['habr'] = internships
                 except Exception as e:
                     logger.error(f"Ошибка при получении стажировок с Habr Career: {str(e)}")
                     results['habr'] = []
                     
-            def fetch_superjob():
+            def fetch_superjob_task():
                 try:
-                    internships = fetch_superjob_internships(city=city, keywords=keywords, max_pages=max_pages)
-                    logger.info(f"Получено {len(internships)} стажировок с SuperJob.")
-                    results['superjob'] = internships
+                    processed_internship_objects = fetch_superjob_internships(city=city, keywords=keywords, max_pages=max_pages, website_obj=superjob_website_obj)
+                    logger.info(f"Получено {len(processed_internship_objects)} объектов стажировок с SuperJob.")
+                    results['superjob'] = processed_internship_objects
                 except Exception as e:
                     logger.error(f"Ошибка при получении стажировок с SuperJob: {str(e)}")
                     results['superjob'] = []
@@ -470,62 +495,77 @@ class FetchAllInternshipsAPIView(APIView):
             with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
                 hh_future = executor.submit(fetch_hh)
                 habr_future = executor.submit(fetch_habr)
-                superjob_future = executor.submit(fetch_superjob)
+                superjob_future = executor.submit(fetch_superjob_task)
                 
                 concurrent.futures.wait([hh_future, habr_future, superjob_future])
             
-            hh_internships = results['hh'] or []
-            habr_internships = results['habr'] or []
-            superjob_internships = results['superjob'] or []
-            
-            hh_website, _ = Website.objects.get_or_create(
-                name="HeadHunter",
-                url="https://hh.ru",
-            )
-            
-            habr_website, _ = Website.objects.get_or_create(
-                name="Habr Career",
-                url="https://career.habr.com",
-            )
-            
-            superjob_website, _ = Website.objects.get_or_create(
-                name="SuperJob",
-                url="https://www.superjob.ru/",
-            )
+            hh_internships_data = results['hh'] or []
+            habr_internships_data = results['habr'] or []
+            superjob_internship_objects = results['superjob'] or []
             
             hh_client = HeadHunterAPI()
-            habr_client = HabrCareerAPI()
-            superjob_client = SuperJobParser()
+            habr_client = HabrCareerParser()
             
             stats = {
-                'hh': {'total': len(hh_internships), 'created': 0, 'updated': 0},
-                'habr': {'total': len(habr_internships), 'created': 0, 'updated': 0},
-                'superjob': {'total': len(superjob_internships), 'created': 0, 'updated': 0}
+                'hh': {'total': len(hh_internships_data), 'created': 0, 'updated': 0, 'errors': 0},
+                'habr': {'total': len(habr_internships_data), 'created': 0, 'updated': 0, 'errors': 0},
+                'superjob': {'total': len(superjob_internship_objects), 'created': 0, 'updated': 0, 'errors': 0}
             }
             
-            for internship_data in hh_internships:
-                _, is_created = hh_client.create_internship(internship_data, hh_website)
-                if is_created:
-                    stats['hh']['created'] += 1
+            for internship_data in hh_internships_data:
+                obj, is_created = hh_client.create_internship(internship_data, hh_website)
+                if obj:
+                    if is_created:
+                        stats['hh']['created'] += 1
+                    else:
+                        stats['hh']['updated'] += 1
                 else:
-                    stats['hh']['updated'] += 1
+                    stats['hh']['errors'] +=1
             
-            for internship_data in habr_internships:
-                _, is_created = habr_client.create_internship(internship_data, habr_website)
-                if is_created:
-                    stats['habr']['created'] += 1
+            for internship_data in habr_internships_data:
+                if isinstance(internship_data, Internship):
+                    if internship_data.id is None:  
+                        stats['habr']['created'] += 1
+                    else:
+                        stats['habr']['updated'] += 1
                 else:
-                    stats['habr']['updated'] += 1
+                    obj, is_created = habr_client.create_internship(internship_data, habr_website)
+                    if obj:
+                        if is_created:
+                            stats['habr']['created'] += 1
+                        else:
+                            stats['habr']['updated'] += 1
+                    else:
+                        stats['habr']['errors'] +=1
                     
-            for internship_data in superjob_internships:
-                _, is_created = superjob_client.create_internship(internship_data, superjob_website)
-                if is_created:
-                    stats['superjob']['created'] += 1
+            for internship_obj in superjob_internship_objects:
+                if isinstance(internship_obj, Internship):
+                    if internship_obj.id is None:
+                        stats['superjob']['created'] += 1
+                    else:
+                        stats['superjob']['updated'] += 1
                 else:
-                    stats['superjob']['updated'] += 1
+                    try:
+                        sj_client = SuperJobParser()
+                        obj, is_created = sj_client.create_internship(internship_obj, superjob_website_obj)
+                        if obj:
+                            if is_created:
+                                stats['superjob']['created'] += 1
+                            else:
+                                stats['superjob']['updated'] += 1
+                        else:
+                            stats['superjob']['errors'] += 1
+                    except Exception as e:
+                        logger.error(f"Ошибка при создании/обновлении стажировки SuperJob: {str(e)}")
+                        stats['superjob']['errors'] += 1
             
-            total_count = len(hh_internships) + len(habr_internships) + len(superjob_internships)
-            logger.info(f"Параллельно обработано {total_count} стажировок (многопоточный режим)")
+            total_processed = stats['hh']['created'] + stats['hh']['updated'] + \
+                              stats['habr']['created'] + stats['habr']['updated'] + \
+                              stats['superjob']['created'] + stats['superjob']['updated']
+            logger.info(f"Параллельно обработано стажировок: HH (создано {stats['hh']['created']}, обновлено {stats['hh']['updated']}), "
+                        f"Habr (создано {stats['habr']['created']}, обновлено {stats['habr']['updated']}), "
+                        f"SuperJob (создано {stats['superjob']['created']}, обновлено {stats['superjob']['updated']}). "
+                        f"Всего обработано: {total_processed}")
         except Exception as e:
             logger.error(f"Ошибка при выполнении задачи получения стажировок со всех источников: {e}", exc_info=True)
     
@@ -698,7 +738,7 @@ def _run_parsers_in_thread(params):
         
         def fetch_habr():
             try:
-                internships = fetch_habr_internships(**params)
+                internships = fetch_habr_career_internships(**params)
                 logger.info(f"Получено {len(internships)} стажировок с Habr Career.")
                 results['habr'] = internships
             except Exception as e:
@@ -741,7 +781,7 @@ def _run_parsers_in_thread(params):
         )
         
         hh_client = HeadHunterAPI()
-        habr_client = HabrCareerAPI()
+        habr_client = HabrCareerParser()
         superjob_client = SuperJobParser()
         
         stats = {
@@ -758,18 +798,36 @@ def _run_parsers_in_thread(params):
                 stats['hh']['updated'] += 1
         
         for internship_data in habr_internships:
-            _, is_created = habr_client.create_internship(internship_data, habr_website)
-            if is_created:
-                stats['habr']['created'] += 1
+            if isinstance(internship_data, Internship):
+                if internship_data.id is None:  
+                    stats['habr']['created'] += 1
+                else:
+                    stats['habr']['updated'] += 1
             else:
-                stats['habr']['updated'] += 1
-                
+                obj, is_created = habr_client.create_internship(internship_data, habr_website)
+                if obj:
+                    if is_created:
+                        stats['habr']['created'] += 1
+                    else:
+                        stats['habr']['updated'] += 1
+                else:
+                    stats['habr']['errors'] +=1
+                    
         for internship_data in superjob_internships:
-            _, is_created = superjob_client.create_internship(internship_data, superjob_website)
-            if is_created:
-                stats['superjob']['created'] += 1
+            if isinstance(internship_data, Internship):
+                if internship_data.id is None:  
+                    stats['superjob']['created'] += 1
+                else:
+                    stats['superjob']['updated'] += 1
             else:
-                stats['superjob']['updated'] += 1
+                try:
+                    _, is_created = superjob_client.create_internship(internship_data, superjob_website)
+                    if is_created:
+                        stats['superjob']['created'] += 1
+                    else:
+                        stats['superjob']['updated'] += 1
+                except Exception as e:
+                    logger.error(f"Ошибка при создании/обновлении стажировки SuperJob: {str(e)}")
         
         total_count = len(hh_internships) + len(habr_internships) + len(superjob_internships)
         logger.info(f"Параллельно обработано {total_count} стажировок через webhook")

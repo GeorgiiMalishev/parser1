@@ -27,7 +27,7 @@ prompt_template = f"""
 """
 
 
-OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY") # Рекомендуемый способ
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 
 OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions"
 

@@ -5,48 +5,38 @@ import re
 import json
 import random
 from datetime import datetime, timedelta
+from django.utils import timezone
 from django.conf import settings
 import time
 from .constants import TECH_KEYWORDS
 from .base_parser import BaseParser
-from .models import Internship
+from .models import Internship, Website
+from .internship_service import InternshipService
+from django.db import transaction
 
 logger = logging.getLogger('parser')
 
 class HeadHunterAPI(BaseParser):
-    """Класс для работы с API HeadHunter"""
-    
     BASE_URL = 'https://api.hh.ru/vacancies'
-    
+
     def __init__(self, token=None, host="hh.ru"):
-        """Инициализация API клиента"""
         super().__init__()
         self.token = token or settings.HH_API_TOKEN or os.getenv('HH_API_TOKEN')
         self.host = host
-        
+
         self.headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             'Accept': '*/*',
             'HH-User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 malishev292@gmail.com'
         }
-        
+
         if self.token:
             self.headers['Authorization'] = f'Bearer {self.token}'
             logger.info("Используется токен авторизации для HeadHunter API")
         else:
             logger.warning("Токен авторизации для HeadHunter API не найден. Возможны ограничения в количестве запросов.")
-    
+
     def handle_auth_error(self, response, retry_count=0, max_retries=2):
-        """Обработка ошибок авторизации
-        
-        Args:
-            response: Ответ API с ошибкой
-            retry_count: Текущее количество попыток
-            max_retries: Максимальное количество попыток
-            
-        Returns:
-            bool: True, если токен был обновлен и стоит повторить запрос
-        """
         if retry_count >= max_retries:
             logger.warning(f"Достигнуто максимальное количество попыток ({max_retries}) обновления токена")
             return False
@@ -69,22 +59,10 @@ class HeadHunterAPI(BaseParser):
                 logger.warning(f"Получена ошибка доступа 403: {error_text}")
                 return False
         return False
-    
+
     def make_authenticated_request(self, url, params=None, method='get', data=None, max_retries=2):
-        """Выполнение запроса с автоматической обработкой ошибок аутентификации
-        
-        Args:
-            url: URL запроса
-            params: Параметры запроса
-            method: Метод запроса (get, post)
-            data: Данные для POST-запроса
-            max_retries: Максимальное количество попыток
-            
-        Returns:
-            response: Ответ API или None в случае ошибки
-        """
         retry_count = 0
-        
+
         while retry_count <= max_retries:
             try:
                 if method.lower() == 'get':
@@ -109,13 +87,13 @@ class HeadHunterAPI(BaseParser):
                 else:
                     logger.error(f"Превышено максимальное количество попыток ({max_retries})")
                     return None
-    
-    def search_internships(self, keywords=None, area=None, page=0, per_page=100, 
-                          date_from=None, date_to=None, schedule=None, metro=None, 
-                          professional_role=None, industry=None, only_with_salary=False, 
-                          salary=None, currency=None, experience=None, 
+        return None
+
+    def search_internships(self, keywords=None, area=None, page=0, per_page=100,
+                          date_from=None, date_to=None, schedule=None, metro=None,
+                          professional_role=None, industry=None, only_with_salary=False,
+                          salary=None, currency=None, experience=None,
                           part_time=None, accept_temporary=True, employment=None):
-        """Поиск стажировок через API HeadHunter"""
         if page > 19 and per_page == 100:
             logger.warning("Ограничение API HeadHunter: невозможно получить более 2000 вакансий.")
             return {'items': [], 'found': 0, 'pages': 0, 'per_page': per_page, 'page': page}
@@ -164,20 +142,11 @@ class HeadHunterAPI(BaseParser):
             return {'items': [], 'found': 0, 'pages': 0, 'per_page': per_page, 'page': page}
 
     def _add_optional_params(self, params, options_dict):
-        """Добавляет непустые параметры в словарь params"""
         for key, value in options_dict.items():
             if value:
                 params[key] = value
-    
+
     def get_area_id_by_city(self, city_name):
-        """Получение ID региона по названию города
-        
-        Args:
-            city_name (str): Название города
-            
-        Returns:
-            str: ID региона или None, если город не найден
-        """
         if not city_name:
             logger.warning("Название города не указано")
             return None
@@ -207,9 +176,8 @@ class HeadHunterAPI(BaseParser):
         except Exception as e:
             logger.error(f"Ошибка при получении ID региона по названию города '{city_name}': {str(e)}")
             return None
-    
-    def get_all_internships(self, keywords=None, area=None, max_pages=20, **kwargs):
-        """Получение всех доступных стажировок с учетом пагинации"""
+
+    def get_all_internships(self, keywords=None, area=None, max_pages=20, website_obj=None, **kwargs):
         all_vacancies = []
         page = 0
         if max_pages > 20:
@@ -217,6 +185,9 @@ class HeadHunterAPI(BaseParser):
             max_pages = 20
         base_delay = 5
         max_retries = 3
+
+        vacancies_to_process = []
+
         while True:
             retries = 0
             success = False
@@ -243,8 +214,51 @@ class HeadHunterAPI(BaseParser):
                 if page == 0:
                     logger.error("Не удалось получить ни одной стажировки с HeadHunter")
                 break
-            all_vacancies.extend(result['items'])
-            logger.info(f"Получено {len(result['items'])} стажировок с страницы {page+1}")
+
+            for vacancy in result['items']:
+                basic_info = {
+                    'external_id': vacancy.get('id'),
+                    'title': vacancy.get('name', 'Не указано'),
+                    'company': vacancy.get('employer', {}).get('name', 'Не указано'),
+                    'url': vacancy.get('alternate_url', f"https://hh.ru/vacancy/{vacancy.get('id')}")
+                }
+
+                existing = None
+                current_external_id = basic_info.get('external_id')
+
+                logger.debug(f"[Check ID: {current_external_id}] Поиск существующей записи для ID: {current_external_id} (тип: {type(current_external_id)}), сайт: {website_obj.name if website_obj else 'None'}")
+
+                if website_obj and current_external_id:
+                    existing = InternshipService.get_existing_by_external_id(str(current_external_id), website_obj)
+
+                logger.debug(f"[Check ID: {current_external_id}] Результат поиска: {'Найден объект Internship' if existing else 'None'}")
+
+                should_process = False
+                if not existing:
+                    logger.debug(f"[Check ID: {current_external_id}] Причина обработки: Стажировка не найдена в БД (existing is None).")
+                    should_process = True
+                elif website_obj:
+                    needs_update = InternshipService.should_update_internship(existing)
+                    if needs_update:
+                        logger.debug(f"[Check ID: {current_external_id}] Причина обработки: Требуется обновление (should_update_internship вернуло True).")
+                        last_updated = existing.updated_at.strftime('%Y-%m-%d %H:%M:%S') if existing.updated_at else 'None'
+                        seven_days_ago = (timezone.now() - timedelta(days=7)).strftime('%Y-%m-%d %H:%M:%S')
+                        logger.debug(f"[Check ID: {current_external_id}] Дата последнего обновления: {last_updated}, порог: {seven_days_ago}")
+                        should_process = True
+                    else:
+                         logger.debug(f"[Check ID: {current_external_id}] Пропуск: Не требуется обновление (should_update_internship вернуло False).")
+                         last_updated = existing.updated_at.strftime('%Y-%m-%d %H:%M:%S') if existing.updated_at else 'None'
+                         logger.debug(f"[Check ID: {current_external_id}] Дата последнего обновления: {last_updated}, обновление не требуется.")
+                else:
+                    logger.warning(f"[Check ID: {current_external_id}] Пропуск: Не передан website_obj для проверки should_update_internship.")
+
+                if should_process:
+                    vacancies_to_process.append(vacancy)
+                else:
+                    logger.info(f"Пропуск обновления для вакансии {basic_info.get('title')} (ID: {current_external_id}) - обновлена недавно или не требует обновления")
+
+            logger.info(f"Обработано {len(result['items'])} стажировок с страницы {page+1}, из них для детального парсинга отобрано {len(vacancies_to_process) - len(all_vacancies)}")
+
             total_pages = result.get('pages', 0)
             logger.info(f"Всего доступно страниц: {total_pages}")
             if page >= total_pages - 1 or page >= max_pages - 1:
@@ -255,11 +269,28 @@ class HeadHunterAPI(BaseParser):
             delay = base_delay * jitter
             logger.info(f"Ожидание {delay:.2f} секунд перед следующим запросом...")
             time.sleep(delay)
-        logger.info(f"Загружено {len(all_vacancies)} стажировок с HeadHunter")
-        return all_vacancies
-    
+
+        logger.info(f"Всего отобрано {len(vacancies_to_process)} стажировок для детального парсинга")
+
+        detailed_vacancies = []
+        for i, vacancy in enumerate(vacancies_to_process):
+            try:
+                logger.info(f"Получение деталей вакансии {i+1}/{len(vacancies_to_process)}: {vacancy.get('id')}")
+                vacancy_details = self.parse_vacancy_details(vacancy.get('id'))
+                internship_data = self.convert_to_internship_data(vacancy_details)
+                if internship_data:
+                    detailed_vacancies.append(internship_data)
+
+                if i < len(vacancies_to_process) - 1:
+                    delay = random.uniform(1.0, 2.0)
+                    time.sleep(delay)
+            except Exception as e:
+                logger.error(f"Ошибка при обработке вакансии {vacancy.get('id')}: {str(e)}")
+
+        logger.info(f"Успешно получены детали {len(detailed_vacancies)} стажировок из {len(vacancies_to_process)} отобранных")
+        return detailed_vacancies
+
     def parse_vacancy_details(self, vacancy_id):
-        """Получение подробной информации о вакансии по её ID"""
         try:
             logger.info(f"Запрос детальной информации о вакансии {vacancy_id}")
             url = f'https://api.hh.ru/vacancies/{vacancy_id}'
@@ -274,9 +305,8 @@ class HeadHunterAPI(BaseParser):
         except Exception as e:
             logger.error(f"Ошибка при получении деталей вакансии {vacancy_id}: {str(e)}")
             raise
-    
+
     def convert_to_internship_data(self, vacancy):
-        """Преобразование данных вакансии из API в унифицированный формат"""
         try:
             employment_type = 'office'
             if 'удаленн' in vacancy.get('name', '').lower() or 'удаленн' in vacancy.get('description', '').lower():
@@ -336,51 +366,48 @@ class HeadHunterAPI(BaseParser):
             logger.error(f"Ошибка при преобразовании данных вакансии {vacancy.get('id', 'unknown')}: {str(e)}")
             return None
 
-    def create_internship(self, internship_data, website):
-        if not internship_data:
+    def create_internship(self, data, website_obj):
+        if not data:
             logger.warning("Попытка создать/обновить стажировку с пустыми данными.")
             return None, False
-        lookup_params = {
-            'url': internship_data['url'],
-            'source_website': website
-        }
+
+        if isinstance(data, Internship):
+            logger.info(f"Возвращаем существующий объект Internship: {data.title} (ID: {data.id})")
+            return data, False
+
         valid_keys = {f.name for f in Internship._meta.get_fields()}
-        defaults_data = {k: v for k, v in internship_data.items() if k not in lookup_params and k in valid_keys}
-        try:
-            internship, created = Internship.objects.update_or_create(
-                **lookup_params,
-                defaults=defaults_data
-            )
-            action = "Создана" if created else "Обновлена"
-            logger.info(f"{action} стажировка: '{internship.title}' по URL {internship.url}")
-            return internship, created
-        except Exception as e:
-            logger.error(f"Ошибка при update_or_create стажировки для URL {internship_data.get('url')}: {e}", exc_info=True)
-            return None, False
+        internship_data = {k: v for k, v in data.items() if k in valid_keys}
+
+        return InternshipService.create_or_update(internship_data, website_obj)
 
 def fetch_hh_internships(keywords=None, area=None, city=None, **kwargs):
-    """Получение стажировок с HeadHunter"""
     client = HeadHunterAPI()
     logger.info(f"Запуск парсинга стажировок с HeadHunter с параметрами: keywords={keywords}, city={city}")
+
+    website_obj = kwargs.pop('website_obj', None)
+    if not website_obj:
+        website_obj, _ = Website.objects.get_or_create(
+            name="HeadHunter",
+            defaults={"url": "https://hh.ru/"}
+        )
+
     if city and not area:
         area = client.get_area_id_by_city(city)
         if not area:
             logger.warning(f"Не удалось найти ID региона для города '{city}'. Поиск будет выполнен без фильтрации по региону.")
-    vacancies = client.get_all_internships(keywords=keywords, area=area, **kwargs)
+
+    vacancies = client.get_all_internships(keywords=keywords, area=area, website_obj=website_obj, **kwargs)
     logger.info(f"Получено {len(vacancies)} стажировок с HeadHunter")
-    detailed_vacancies = []
-    total_vacancies = len(vacancies)
-    for i, vacancy in enumerate(vacancies):
+
+    processed_internships = []
+    for internship_data in vacancies:
         try:
-            logger.info(f"Получение деталей вакансии {i+1}/{total_vacancies}: {vacancy.get('id')}")
-            vacancy_details = client.parse_vacancy_details(vacancy.get('id'))
-            internship_data = client.convert_to_internship_data(vacancy_details)
-            if internship_data:
-                detailed_vacancies.append(internship_data)
-            if i < total_vacancies - 1:
-                delay = random.uniform(1.0, 2.0)
-                time.sleep(delay)
+            with transaction.atomic():
+                internship, created = client.create_internship(internship_data, website_obj)
+                if internship:
+                    processed_internships.append(internship)
         except Exception as e:
-            logger.error(f"Ошибка при обработке вакансии {vacancy.get('id')}: {str(e)}")
-    logger.info(f"Успешно получены детали {len(detailed_vacancies)} стажировок из {total_vacancies} с HeadHunter")
-    return detailed_vacancies
+            logger.error(f"Ошибка при обработке данных стажировки (данные: {str(internship_data)[:200]}...): {e}", exc_info=True)
+
+    logger.info(f"Завершено получение стажировок с HeadHunter. Обработано {len(processed_internships)} стажировок.")
+    return processed_internships

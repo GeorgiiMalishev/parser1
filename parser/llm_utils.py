@@ -3,6 +3,9 @@ import json
 import os
 import logging
 import re
+import ast
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +20,7 @@ prompt_template = f"""
 - selection_end_date: Дата окончания отбора (string в формате YYYY-MM-DD, если указана, иначе null)
 - duration: Продолжительность стажировки (string, если указана, иначе null)
 - description: **Подробное** описание вакансии/стажировки. Постарайся извлечь как можно больше релевантной информации об обязанностях, требованиях и условиях. (string, обязательное поле)
-- employment_type: Тип занятости (например, 'full_time', 'part_time', 'internship', 'project'). Если не указано явно, попробуй определить из контекста или установи null. (string)
+- employment_type: Формат работы. Если работа удаленная, верни "remote". Если гибридный формат, верни "hybrid". Если не указано явно, попробуй определить из контекста, если не удается, верни null. (string)
 - city: Город (string, если указан, иначе null)
 
 Верни **только** JSON объект без каких-либо дополнительных пояснений или текста до/после него.
@@ -33,17 +36,22 @@ OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions"
 YOUR_SITE_URL = "http://localhost:8000"
 YOUR_SITE_NAME = "Internship Parser"
 
-MAX_CHARS_LIMIT = 15000
+MAX_CHARS_LIMIT = 400000
 
 def parse_with_openrouter(cleaned_text):
-    """Отправляет текст в OpenRouter API и парсит JSON из ответа."""
     if not OPENROUTER_API_KEY:
         logger.error("API ключ OpenRouter не настроен (OPENROUTER_API_KEY).")
         return None
 
-    if len(cleaned_text) > MAX_CHARS_LIMIT:
-        logger.warning(f"Текст для LLM слишком длинный ({len(cleaned_text)} символов), обрезаем до {MAX_CHARS_LIMIT}.")
+    original_length = len(cleaned_text)
+    logger.info(f"Размер исходного текста: {original_length} символов")
+
+    if original_length > MAX_CHARS_LIMIT:
+        logger.warning(f"Текст для LLM слишком длинный ({original_length} символов), обрезаем до {MAX_CHARS_LIMIT} (Gemini 2.0 Flash имеет большой контекст).")
         cleaned_text = cleaned_text[:MAX_CHARS_LIMIT]
+        logger.info(f"Размер текста после обрезки: {len(cleaned_text)} символов")
+    else:
+        logger.info(f"Размер текста в пределах лимита модели ({original_length} < {MAX_CHARS_LIMIT})")
 
     prompt_content = prompt_template.format(cleaned_text=cleaned_text)
 
@@ -54,19 +62,37 @@ def parse_with_openrouter(cleaned_text):
         "X-Title": YOUR_SITE_NAME,
     }
 
-    data = json.dumps({
-        "model": "deepseek/deepseek-chat-v3-0324:free",
+    data_dict = {
+        "model": "google/gemini-2.0-flash-exp:free",
         "messages": [
+            {
+                "role": "system",
+                "content": "Ты являешься экспертом по извлечению структурированных данных. Твоя задача - извлечь информацию о стажировках и вакансиях из HTML-текста и вернуть её в формате JSON. ОЧЕНЬ ВАЖНО: возвращай ТОЛЬКО валидный JSON-объект без каких-либо префиксов, суффиксов или символов markdown. Не используй тройные обратные кавычки, звездочки, маркеры списка или другие markdown-символы. Начинай ответ с символа { и заканчивай символом }. Убедись, что все ключи и значения в JSON корректны и заключены в двойные кавычки там, где это необходимо. Не добавляй никаких комментариев к JSON. Поля, для которых не найдена информация, должны иметь значение null."
+            },
             {
                 "role": "user",
                 "content": prompt_content
             }
         ],
-        "response_format": { "type": "json_object" }
-    })
+        "response_format": { "type": "json_object" },
+        "temperature": 0.1
+    }
+
+    data = json.dumps(data_dict)
 
     try:
-        response = requests.post(OPENROUTER_API_URL, headers=headers, data=data, timeout=60)
+        session = requests.Session()
+        retries = Retry(
+            total=3,
+            backoff_factor=1,
+            status_forcelist=[429, 500, 502, 503, 504],
+            allowed_methods=["POST"],
+        )
+        adapter = HTTPAdapter(max_retries=retries)
+        session.mount("https://", adapter)
+
+        logger.info(f"Отправка запроса к OpenRouter API (модель: {data_dict['model']})")
+        response = session.post(OPENROUTER_API_URL, headers=headers, data=data, timeout=120)
         response.raise_for_status()
 
         api_response_json = response.json()
@@ -84,12 +110,65 @@ def parse_with_openrouter(cleaned_text):
         else:
             json_str = content_str
 
+            if '*' in json_str:
+                json_str = re.sub(r'^\s*\*\s*', '', json_str, flags=re.MULTILINE)
+
+            if not json_str.strip().startswith('{') and re.search(r'^\s*"[a-zA-Z_]+":', json_str.strip()):
+                json_str = '{' + json_str + '}'
+
+            json_start = json_str.find('{')
+            if json_start != -1:
+                json_end = json_str.rfind('}')
+                if json_end > json_start:
+                    json_str = json_str[json_start:json_end+1]
+
+            if not ('{' in json_str and '}' in json_str):
+                logger.warning(f"Не удалось найти JSON структуру в ответе: {content_str[:100]}...")
+
         try:
             parsed_data = json.loads(json_str)
             logger.info("OpenRouter успешно извлек данные.")
             return parsed_data
         except json.JSONDecodeError as json_e:
             logger.error(f"Не удалось распарсить JSON из ответа OpenRouter. Ошибка: {json_e}. Ответ модели (после возможного извлечения): {json_str}")
+
+            try:
+                fixed_json_str = json_str
+
+                quotes_count = fixed_json_str.count('"')
+                if quotes_count % 2 != 0:
+                    fixed_json_str += '"'
+
+                if fixed_json_str.count('{') > fixed_json_str.count('}'):
+                    fixed_json_str += '}' * (fixed_json_str.count('{') - fixed_json_str.count('}'))
+
+                fixed_json_str = fixed_json_str.replace("'", '"')
+
+                try:
+                    fixed_data = ast.literal_eval(fixed_json_str)
+                    if isinstance(fixed_data, dict):
+                        logger.info("Удалось восстановить данные с помощью ast.literal_eval")
+                        return fixed_data
+                except:
+                    pass
+
+                required_fields = ['title', 'company', 'description']
+                manual_data = {}
+
+                for field in required_fields:
+                    pattern = fr'"({field})"\s*:\s*"([^"]*)"'
+                    match = re.search(pattern, content_str)
+                    if match:
+                        manual_data[match.group(1)] = match.group(2)
+
+                if all(field in manual_data for field in required_fields):
+                    logger.info("Удалось извлечь обязательные поля с помощью регулярных выражений")
+                    return manual_data
+
+                logger.error("Все попытки восстановить JSON не удались")
+            except Exception as recovery_e:
+                logger.error(f"Ошибка при попытке восстановления JSON: {recovery_e}")
+
             return None
 
     except requests.exceptions.Timeout:
@@ -107,23 +186,3 @@ def parse_with_openrouter(cleaned_text):
     except Exception as e:
         logger.exception(f"Непредвиденная ошибка при работе с OpenRouter API: {e}")
         return None
-
-if __name__ == '__main__':
-    logging.basicConfig(level=logging.INFO)
-
-    sample_text = """
-    Стажер-разработчик Python в ООО Рога и Копыта
-
-    Наша компания ищет талантливого стажера Python для работы над веб-проектами.
-    Офис в г. Москва. Гибкий график, возможна удаленка после испытательного срока.
-    Зарплата по результатам собеседования. Длительность 3 месяца.
-    Требования: знание Python, Django, Git. Начало отбора 2024-08-01.
-    """
-
-    result = parse_with_openrouter(sample_text)
-
-    if result:
-        print("\nУспешно извлеченные данные:")
-        print(json.dumps(result, indent=2, ensure_ascii=False))
-    else:
-        print("\nНе удалось извлечь данные.")
