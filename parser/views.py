@@ -1,5 +1,5 @@
 from django.shortcuts import render, redirect
-from django.views.generic import ListView, CreateView, UpdateView, DeleteView
+from django.views.generic import ListView, CreateView, UpdateView, DeleteView, TemplateView
 from django.urls import reverse_lazy
 from django.http import JsonResponse, HttpResponse
 from django.contrib import messages
@@ -18,7 +18,8 @@ load_dotenv()
 
 def index(request):
     """Главная страница с вкладками"""
-    return render(request, 'parser/index.html')
+    websites = Website.objects.all()
+    return render(request, 'parser/index.html', {'websites': websites})
 
 class WebsiteListView(ListView):
     """Отображение списка сайтов"""
@@ -36,7 +37,7 @@ class WebsiteCreateView(CreateView):
     model = Website
     form_class = WebsiteForm
     template_name = 'parser/website_form.html'
-    success_url = reverse_lazy('website_list')
+    success_url = reverse_lazy('parser:website_list')
 
 def parse_website_preview(request):
     """Предпросмотр результатов парсинга сайта"""
@@ -63,9 +64,9 @@ def run_hh_parser(request):
         except Exception as e:
             messages.error(request, f'Ошибка при запуске парсера HeadHunter: {str(e)}')
         
-        return redirect('internship_list')
+        return redirect('parser:internship_list')
     
-    return redirect('website_list')
+    return redirect('parser:website_list')
 
 class InternshipListView(ListView):
     """Отображение списка стажировок с фильтрами"""
@@ -105,6 +106,10 @@ class InternshipListView(ListView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['filter_form'] = InternshipFilterForm(self.request.GET)
+        
+        # Получаем уникальные города из базы для фильтра
+        context['cities'] = Internship.objects.values_list('city', flat=True).distinct()
+        
         return context
 
 class ArchivedInternshipListView(InternshipListView):
@@ -123,3 +128,12 @@ def archive_internship(request, pk):
         except Internship.DoesNotExist:
             return JsonResponse({'success': False, 'error': 'Internship not found'})
     return JsonResponse({'success': False, 'error': 'Invalid request method'})
+
+class MainPageView(TemplateView):
+    template_name = 'main-page/main-page.html'
+
+class SecondPageView(TemplateView):
+    template_name = 'second-page/second-page.html'
+
+class AddSiteModalView(TemplateView):
+    template_name = 'modal-pages/add-site/add-site.html'

@@ -1,4 +1,6 @@
 from django.apps import AppConfig
+from django.db.migrations.executor import MigrationExecutor
+from django.db import connections
 import os
 from django.conf import settings
 
@@ -10,8 +12,15 @@ class ParserConfig(AppConfig):
     
     def ready(self):
         if not settings.DEBUG or os.environ.get('RUN_SCHEDULER', False):
-            from .scheduler import start_scheduler
-            start_scheduler()
+            # Проверяем, есть ли неприменённые миграции
+            connection = connections['default']
+            executor = MigrationExecutor(connection)
+            plan = executor.migration_plan(executor.loader.graph.leaf_nodes())
+            
+            # Если нет неприменённых миграций, запускаем scheduler
+            if not plan:
+                from .scheduler import start_scheduler
+                start_scheduler()
     
     def _setup_scheduler(self):
         """Инициализация планировщика задач"""

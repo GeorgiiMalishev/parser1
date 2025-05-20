@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Lato:ital,wght@0,100;0,300;0,400;0,700;0,900;1,100;1,300;1,400;1,700;1,900&family=Montserrat+Alternates:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&family=Montserrat:ital,wght@0,100..900;1,100..900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="second-page.style.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Lato:ital,wght@0,100;0,300;0,400;0,700;0,900;1,100;1,300;1,400;1,700;1,900&family=Montserrat:ital,wght@0,100..900;1,100..900&display=swap" rel="stylesheet">
+    <title>Стажировки</title>
+  </head>
+  <body>
+    <main class="main">
+      <section class="left-setion">
+        <nav class="navigation">
+          <div class="main-page-container" id="goToMainPage">
+            <img
+              class="main-page-link-icon"
+              src="../assets/line.svg"
+              width="60px"
+            />
+            <h1 class="main-page-title">главная</h1>
+          </div>
+          <div class="achiv-container">
+            <img src="../assets/archiv.svg" width="73px" height="72px" />
+            <div class="toggle-container">
+              <input class="toggle-check" id="togle-check" type="checkbox" />
+              <label class="toggle-btn" for="togle-check"></label>
+            </div>
+          </div>
+        </nav>
+        <div class="cards-container">
+          <div class="company-card">
+            <div class="company-card__title-container">
+              <h3 class="title-container__title">Название компании</h3>
+            </div>
+            <div class="descreption-container">
+              <p>Должность: <span>разработчик</span></p>
+              <p>Период стажировки: <span>с 07.07.2025 по 07.08.2025</span></p>
+              <p>Технологии: <span>Python</span></p>
+              <div class="infa-desc">
+                Различная информация о стажировкеРазличная информация о
+                стажировкеРазличная информация о стажировкеРазличная информация
+                о стажировкеРазличная информация о стажировкеРазличная информация о
+                стажировкеРазличная информация о стажировкеРазличная информация
+                о стажировке
+              </div>
+            </div>
+        </div>
+        
+        <div class="company-card">
+          <div class="company-card__title-container">
+            <h3 class="title-container__title">Название компании</h3>
+          </div>
+          <div class="descreption-container">
+            <p>Должность: <span>разработчик</span></p>
+            <p>Период стажировки: <span>с 07.07.2025 по 07.08.2025</span></p>
+            <p>Технологии: <span>Python</span></p>
+            <div class="infa-desc">
+              Различная информация о стажировкеРазличная информация о
+              стажировкеРазличная информация о стажировкеРазличная информация
+              о стажировкеРазличная информация о стажировкеРазличная информация о
+              стажировкеРазличная информация о стажировкеРазличная информация
+              о стажировке
+            </div>
+          </div>
+      </div>
+      <div class="company-card">
+        <div class="company-card__title-container">
+          <h3 class="title-container__title">Название компании</h3>
+        </div>
+        <div class="descreption-container">
+          <p>Должность: <span>разработчик</span></p>
+          <p>Период стажировки: <span>с 07.07.2025 по 07.08.2025</span></p>
+          <p>Технологии: <span>Python</span></p>
+          <div class="infa-desc">
+            Различная информация о стажировкеРазличная информация о
+            стажировкеРазличная информация о стажировкеРазличная информация
+            о стажировкеРазличная информация о стажировкеРазличная информация о
+            стажировкеРазличная информация о стажировкеРазличная информация
+            о стажировке
+          </div>
+        </div>
+    </div>
+      </section>
+      <section class="right-setion">
+        <div class="filter-card">
+          <input class="input-key-main" placeholder="По ключевым словам" />
+          <div class="select-container">
+            <h3 class="container-title">Город</h3>
+            <select class="select-class" type="select">
+              <option value="">Екатеринбург</option>
+              <option value="dog">Екатеринбург</option>
+              <option value="cat">Екатеринбург</option>
+              <option value="hamster">Hamster</option>
+            </select>
+          </div>
+          <div class="select-container">
+            <h3 class="container-title">Формат стажировки</h3>
+            <select class="select-class" type="select">
+              <option value="">Очно</option>
+              <option value="dog">Online</option>
+            </select>
+          </div>
+          <div class="select-container">
+            <h3 class="container-title">Период</h3>
+            <div class="datetime-container">
+              с
+              <input class="datetime-input" type="date" />
+              до
+              <input class="datetime-input" type="date" />
+            </div>
+          </div>
+          <button class="filer-btn">Применить фильтр</button>
+        </div>
+      </section>
+    </main>
+    <script src="secnd-page.script.js"></script>
+  </body>
+</html>
