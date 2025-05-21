@@ -62,7 +62,9 @@ ROOT_URLCONF = 'internship_parser.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [os.path.join(BASE_DIR, '../Проект верстка (3)/Проект верстка')],
+        'DIRS': [
+            os.path.join(BASE_DIR, 'parser/templates'),
+        ],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -131,10 +133,6 @@ STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'static')
 STATICFILES_DIRS = [
     os.path.join(BASE_DIR, 'parser/static'),
-    os.path.join(BASE_DIR, '../Проект верстка (3)/Проект верстка/assets'),
-    os.path.join(BASE_DIR, '../Проект верстка (3)/Проект верстка/main-page'),
-    os.path.join(BASE_DIR, '../Проект верстка (3)/Проект верстка/second-page'),
-    os.path.join(BASE_DIR, '../Проект верстка (3)/Проект верстка/modal-pages/add-site'),
 ]
 
 # Настройка медиа-файлов

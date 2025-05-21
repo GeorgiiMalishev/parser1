@@ -1,0 +1,97 @@
+{% extends 'parser/base.html' %}
+{% load static %}
+
+{% block title %}Стажировки - Парсер стажировок{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'parser/css/second-page.css' %}" />
+{% endblock %}
+
+{% block content %}
+<main class="main">
+  <section class="left-setion">
+    <nav class="navigation">
+      <div class="main-page-container" id="goToMainPage">
+        <img
+          class="main-page-link-icon"
+          src="{% static 'parser/assets/line.svg' %}"
+          width="60px"
+        />
+        <h1 class="main-page-title">главная</h1>
+      </div>
+      <div class="achiv-container">
+        <img src="{% static 'parser/assets/archiv.svg' %}" width="73px" height="72px" />
+        <div class="toggle-container">
+          <input class="toggle-check" id="togle-check" type="checkbox" />
+          <label class="toggle-btn" for="togle-check"></label>
+        </div>
+      </div>
+    </nav>
+    <div class="cards-container">
+      {% for internship in internships %}
+      <div class="company-card">
+        <div class="company-card__title-container">
+          <h3 class="title-container__title">{{ internship.company }}</h3>
+        </div>
+        <div class="descreption-container">
+          <p>Должность: <span>{{ internship.position }}</span></p>
+          <p>Период стажировки: <span>{% if internship.selection_start_date %}с {{ internship.selection_start_date|date:"d.m.Y" }}{% endif %} {% if internship.selection_end_date %}по {{ internship.selection_end_date|date:"d.m.Y" }}{% endif %}</span></p>
+          <p>Технологии: <span>{{ internship.keywords }}</span></p>
+          <div class="infa-desc">
+            {{ internship.description }}
+          </div>
+        </div>
+      </div>
+      {% empty %}
+      <div class="company-card">
+        <div class="company-card__title-container">
+          <h3 class="title-container__title">Нет доступных стажировок</h3>
+        </div>
+        <div class="descreption-container">
+          <p>Попробуйте изменить параметры фильтра или вернитесь позже.</p>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+  <section class="right-setion">
+    <div class="filter-card">
+      <form action="{% url 'parser:second_page' %}" method="GET" style="width: 100%; display: flex; flex-direction: column; gap: 64px;">
+        <input class="input-key-main" placeholder="По ключевым словам" name="keywords" value="{{ filter_form.keywords.value|default_if_none:'' }}"/>
+        <div class="select-container">
+          <h3 class="container-title">Город</h3>
+          <select class="select-class" name="city">
+            <option value="">Выберите город</option>
+            {% for city in cities %}
+            <option value="{{ city }}" {% if filter_form.city.value == city %}selected{% endif %}>{{ city }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="select-container">
+          <h3 class="container-title">Формат стажировки</h3>
+          <select class="select-class" name="format">
+            <option value="">Любой</option>
+            <option value="remote" {% if filter_form.format.value == 'remote' %}selected{% endif %}>Удаленно</option>
+            <option value="office" {% if filter_form.format.value == 'office' %}selected{% endif %}>Очно</option>
+            <option value="hybrid" {% if filter_form.format.value == 'hybrid' %}selected{% endif %}>Гибридный</option>
+          </select>
+        </div>
+        <div class="select-container">
+          <h3 class="container-title">Период</h3>
+          <div class="datetime-container">
+            с
+            <input class="datetime-input" type="date" name="start_date" value="{{ filter_form.start_date.value|date:'Y-m-d'|default_if_none:'' }}"/>
+            до
+            <input class="datetime-input" type="date" name="end_date" value="{{ filter_form.end_date.value|date:'Y-m-d'|default_if_none:'' }}"/>
+          </div>
+        </div>
+        <button class="filer-btn" type="submit">Применить фильтр</button>
+      </form>
+    </div>
+  </section>
+</main>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'parser/js/second-page.js' %}"></script>
+{% endblock %}

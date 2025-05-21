@@ -1,0 +1,73 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Lato:ital,wght@0,100;0,300;0,400;0,700;0,900;1,100;1,300;1,400;1,700;1,900&family=Montserrat+Alternates:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&family=Montserrat:ital,wght@0,100..900;1,100..900&display=swap" rel="stylesheet">
+  <style>
+    .messages-container {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      z-index: 9999;
+      max-width: 300px;
+    }
+    .message {
+      padding: 10px 15px;
+      margin-bottom: 10px;
+      border-radius: 4px;
+      color: white;
+      font-family: 'Montserrat', sans-serif;
+      font-weight: 500;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    }
+    .message-success {
+      background-color: #4CAF50;
+    }
+    .message-error {
+      background-color: #F44336;
+    }
+    .message-warning {
+      background-color: #FF9800;
+    }
+    .message-info {
+      background-color: #2196F3;
+    }
+  </style>
+  {% block extra_css %}{% endblock %}
+  <title>{% block title %}Парсер стажировок{% endblock %}</title>
+</head>
+<body>
+  {% if messages %}
+  <div class="messages-container">
+    {% for message in messages %}
+    <div class="message message-{{ message.tags }}">
+      {{ message }}
+    </div>
+    {% endfor %}
+  </div>
+  <script>
+    // Автоматическое скрытие сообщений через 5 секунд
+    document.addEventListener('DOMContentLoaded', function() {
+      setTimeout(function() {
+        const messages = document.querySelectorAll('.message');
+        messages.forEach(function(message) {
+          message.style.opacity = '0';
+          message.style.transition = 'opacity 0.5s ease';
+          setTimeout(function() {
+            message.remove();
+          }, 500);
+        });
+      }, 5000);
+    });
+  </script>
+  {% endif %}
+  
+  {% block content %}{% endblock %}
+  
+  {% block extra_js %}{% endblock %}
+</body>
+</html> 

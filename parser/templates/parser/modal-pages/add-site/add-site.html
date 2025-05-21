@@ -1,0 +1,30 @@
+{% extends 'parser/base.html' %}
+{% load static %}
+
+{% block title %}Добавить сайт - Парсер стажировок{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'parser/css/main-page.css' %}" />
+<link rel="stylesheet" href="{% static 'parser/css/add-site.css' %}" />
+{% endblock %}
+
+{% block content %}
+<div class="modal-content">
+  <form class="modal-form" method="POST" action="{% url 'parser:website_create' %}">
+    {% csrf_token %}
+    <div class="add-container">
+      <img class="add-icon" src="{% static 'parser/assets/add-icon.svg' %}">
+      <h2>Добавить сайт</h2>
+    </div>
+
+    <input class="form-input" name="name" placeholder="Название сайта" required>
+    <input class="form-input" name="url" placeholder="Ссылка на сайт" required>
+
+    <div class="form-buttons">
+      <button type="submit" class="form-btn">Сохранить</button>
+      <button type="button" class="form-btn cancel-btn" onclick="window.history.back()">Отмена</button>
+    </div>
+  </form>
+</div>
+{% endblock %}
+

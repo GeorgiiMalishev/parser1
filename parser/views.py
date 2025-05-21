@@ -19,7 +19,7 @@ load_dotenv()
 def index(request):
     """Главная страница с вкладками"""
     websites = Website.objects.all()
-    return render(request, 'parser/index.html', {'websites': websites})
+    return render(request, 'parser/main-page/main-page.html', {'websites': websites})
 
 class WebsiteListView(ListView):
     """Отображение списка сайтов"""
@@ -36,8 +36,16 @@ class WebsiteCreateView(CreateView):
     """Создание нового сайта"""
     model = Website
     form_class = WebsiteForm
-    template_name = 'parser/website_form.html'
-    success_url = reverse_lazy('parser:website_list')
+    template_name = 'parser/modal-pages/add-site/add-site.html'
+    success_url = reverse_lazy('parser:main_page')
+    
+    def form_valid(self, form):
+        messages.success(self.request, f'Сайт "{form.instance.name}" успешно добавлен')
+        return super().form_valid(form)
+    
+    def form_invalid(self, form):
+        messages.error(self.request, 'Ошибка при добавлении сайта')
+        return super().form_invalid(form)
 
 def parse_website_preview(request):
     """Предпросмотр результатов парсинга сайта"""
@@ -71,7 +79,7 @@ def run_hh_parser(request):
 class InternshipListView(ListView):
     """Отображение списка стажировок с фильтрами"""
     model = Internship
-    template_name = 'parser/internship_list.html'
+    template_name = 'parser/second-page/second-page.html'
     context_object_name = 'internships'
     
     def get_queryset(self):
@@ -130,10 +138,20 @@ def archive_internship(request, pk):
     return JsonResponse({'success': False, 'error': 'Invalid request method'})
 
 class MainPageView(TemplateView):
-    template_name = 'main-page/main-page.html'
+    template_name = 'parser/main-page/main-page.html'
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['websites'] = Website.objects.all()
+        return context
 
-class SecondPageView(TemplateView):
-    template_name = 'second-page/second-page.html'
+class SecondPageView(InternshipListView):
+    template_name = 'parser/second-page/second-page.html'
 
 class AddSiteModalView(TemplateView):
-    template_name = 'modal-pages/add-site/add-site.html'
+    template_name = 'parser/modal-pages/add-site/add-site.html'
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['websites'] = Website.objects.all()
+        return context

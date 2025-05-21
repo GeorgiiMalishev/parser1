@@ -1,0 +1,93 @@
+{% extends 'parser/base.html' %}
+{% load static %}
+
+{% block title %}Главная страница - Парсер стажировок{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'parser/css/main-page.css' %}" />
+<link rel="stylesheet" href="{% static 'parser/css/add-site.css' %}" />
+{% endblock %}
+
+{% block content %}
+<main class="main">
+  <h1 class="main__title">ПАРСЕР СТАЖИРОВОК</h1>
+  <div class="main__container-btn">
+    <button class="btn" id="openModalSite">сайты</button>
+    <button class="btn">
+      <a href="{% url 'parser:second_page' %}" class="page-route">стажировки</a>
+    </button>
+  </div>
+</main>
+<!-- Модальное окно -->
+<div id="modal" class="modal">
+  <div class="modal-content">
+    <div class="add-container">
+      <button class="main add-btn" id="onAddSiteClick">
+        <img class="add-icon" src="{% static 'parser/assets/add-icon.svg' %}" />
+        Добавить сайт
+      </button>
+    </div>
+
+    <div class="scroll-container">
+      {% for website in websites %}
+      <div class="site-card">
+        <h1 class="card-title">{{ website.name }}</h1>
+        <a class="card-link" href="{{ website.url }}">{{ website.url }}</a>
+      </div>
+      {% empty %}
+      <div class="site-card">
+        <h1 class="card-title">Пока нет добавленных сайтов</h1>
+      </div>
+      {% endfor %}
+    </div>
+    <!-- Модальное окно для заполнения сайта -->
+    <div id="insideModal" class="modal">
+      <form class="modal-form" method="POST" action="{% url 'parser:website_create' %}">
+        {% csrf_token %}
+        <input class="form-input" placeholder="Название сайта" name="name" required />
+        <input class="form-input" placeholder="Ссылка на сайт" name="url" required />
+        <button type="submit" class="form-btn" id="agreeBtn">Подтвердить</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Предпросмотр -->
+  <div class="companyContainer" id="companyContainer">
+    <div class="card-content">
+      <div class="modal-navigation-btn">
+        <img
+        id="closeLooked"
+          class="navigate-modal-line"
+          src="{% static 'parser/assets/line.svg' %}"
+          width="60px"
+        />
+      </div>
+      
+      <div class="main-card-container">
+        <div class="company-card">
+          <div class="company-card__title-container">
+            <input class="card-input title-container__title" placeholder="Название компании">
+          </div>
+          <div class="descreption-container">
+            <div class="desc">Должность: <input class="card-input" placeholder="разработчик"></div>
+            <div class="desc desc-date">Период стажировки: с <input class="card-input" type="date"> по <input class="card-input" type="date"></div>  
+            <div class="desc">Технологии: <input class="card-input" type="date" placeholder="Python"></div>
+            <div class="infa-desc">
+              Различная информация о стажировкеРазличная информация о
+              стажировкеРазличная информация о стажировкеРазличная информация
+              о стажировкеРазличная информация о стажировкеРазличная информация о
+              стажировкеРазличная информация о стажировкеРазличная информация
+              о стажировке
+            </div>
+          </div>
+        </div>
+        <button class="card-btn">Подтвердить</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'parser/js/main-page.js' %}"></script>
+{% endblock %}
