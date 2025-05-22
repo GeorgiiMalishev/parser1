@@ -1,0 +1,92 @@
+.modal-content {
+  border-radius: 20px;
+  width: 1025px;
+  height: 1021px;
+  background: rgb(4, 2, 30);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: start;
+  padding: 24px 186px 24px 186px;
+}
+.add-container {
+  position: relative;
+}
+.add-icon {
+  position: absolute;
+  top: 19px;
+  left: 45px;
+}
+.add-btn {
+  border-radius: 5px;
+  background: rgb(182, 242, 255);
+  width: 653px;
+  height: 90px;
+  color: rgb(0, 0, 0);
+  font-family: Montserrat;
+  font-size: 40px;
+  font-weight: 400;
+  line-height: 49px;
+  letter-spacing: 14px;
+  text-align: right;
+  padding-right: 40px;
+  margin-bottom: 47px;
+  text-align: right;
+}
+.scroll-container {
+  overflow-y: auto;
+  width: 653px;
+  max-height: 840px;
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+.scroll-container::-webkit-scrollbar {
+  width: 12px;
+}
+.scroll-container::-webkit-scrollbar-thumb {
+  border-radius: 1000px;
+  background: rgb(255, 255, 255);
+  border: 1px solid rgb(255, 255, 255);
+}
+.scroll-container::-webkit-scrollbar-track {
+  border-radius: 4px;
+  background: rgb(152, 152, 152);
+  border-style: none;
+}
+.site-card {
+  width: 558px;
+  height: 186px;
+  border-radius: 20px;
+  background: rgb(255, 255, 255);
+  display: flex;
+  flex-direction: column;
+  gap: 0px;
+  box-sizing: border-box;
+  padding: 21px 35px auto 27px;
+}
+.card-title {
+  color: rgb(0, 0, 0);
+  font-family: Montserrat;
+  font-size: 60px;
+  font-weight: 400;
+  text-align: left;
+  margin-bottom: 0;
+  margin-left: 27px;
+}
+.card-link {
+  color: rgb(0, 0, 0);
+  font-family: Montserrat;
+  font-size: 36px;
+  font-weight: 400;
+  letter-spacing: 0%;
+  text-align: left;
+  text-decoration: none;
+  margin-top: 0;
+  margin-left: 27px;
+}
+input{
+  &:focus, &:active{
+    outline: 3px solid rgb(182, 242, 255);
+  }
+}

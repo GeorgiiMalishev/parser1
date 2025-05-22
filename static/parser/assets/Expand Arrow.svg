@@ -1,0 +1,12 @@
+<svg width="36.963257" height="30.000000" viewBox="0 0 36.9633 30" fill="none" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+	<desc>
+			Created with Pixso.
+	</desc>
+	<defs>
+		<pattern id="pattern_47_550" patternContentUnits="objectBoundingBox" width="1.000000" height="1.000000">
+			<use xlink:href="#image47_55_0" transform="matrix(0.009018,0,0,0.011111,0.094192,0)"/>
+		</pattern>
+		<image id="image47_55_0" width="90.000000" height="90.000000" xlink:href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAFoAAABaCAYAAAA4qEECAAAABHNCSVQICAgIfAhkiAAAAWZJREFUeJzt2j1Ow0AUReETCgxsPBJCok4Bi6BArIiGAokfUZoicRPFsePMTN7Y55Nc+76jFJESkCRJkiRJkiRJkiRJkiTFsdo9xdwCG+AH+ADugabkgMIa4AH4BP6AJ+CuxIs3QLv3vDLP2A3b2/bvfc794hXwfeDFc4zdF7kFfoGr3AO+el4+p9jHIrdsG2T3eGTAHGIPRW7ZNggxpNbY4W67Bl4GBr0BN6UGJRD2prDDJgh/S/iBI1RzQzVDD6hue3WDqXMzUNfwmrYeVMMBNWwcJfIhkbdNEvGgiJuSiHRYpC1ZRDgwwoYiLnnoYiJ3LnHw4iJ3Sh6+2MidEgEWH7mTM4SR9+QIYuQeKcMYeUCKQEYe6ZxQRj7RlGBGnuiUcEY+09if+0P9JaBWYz6tfpITmRrbyBOcGtvIZxgb28gJDMU2ckJ9sY2cQQOsgffds8avcJIkSZIkSZIkSZIkSZKk8v4Bx18U3xTOOe4AAAAASUVORK5CYII="/>
+	</defs>
+	<rect id="Expand Arrow" width="36.963249" height="30.000000" fill="url(#pattern_47_550)" fill-opacity="1.000000"/>
+</svg>

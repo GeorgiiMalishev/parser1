@@ -26,7 +26,6 @@ var/
 *.pyc
 db.sqlite3
 media
-static/
 logs/
 
 # Virtual Environment
