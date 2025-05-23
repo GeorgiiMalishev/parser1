@@ -29,6 +29,24 @@ services:
       - db
     networks:
       - app-network
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: django_app
+    restart: always
+    env_file:
+      - .env
+    command: python manage.py runserver 0.0.0.0:8000
+    volumes:
+      - .:/app
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+    networks:
+      - app-network
       
 networks:
   app-network:
@@ -36,4 +54,3 @@ networks:
 
 volumes:
   postgres_data:
-  ollama_data: # Добавляем volume для ollama
