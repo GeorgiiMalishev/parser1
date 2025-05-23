@@ -6,6 +6,7 @@
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'parser/css/main-page.css' %}" />
 <link rel="stylesheet" href="{% static 'parser/css/add-site.css' %}" />
+<link rel="stylesheet" href="{% static 'parser/css/custom-notification.css' %}" />
 {% endblock %}
 
 {% block content %}
@@ -18,7 +19,18 @@
     </button>
   </div>
 </main>
-<!-- Модальное окно -->
+
+{# Конфигурация для JS (URLы) #}
+<div id="js-config" 
+     data-preview-url="{% url 'parser:preview_internship' %}" 
+     data-website-create-url="{% url 'parser:website_create' %}" 
+     data-website-delete-url="{% url 'parser:website_delete' 0 %}"
+     data-get-special-settings-url="{% url 'parser:get_special_parsers_settings' %}"  {# Предполагаемый URL #}
+     data-save-special-settings-url="{% url 'parser:save_special_parsers_settings' %}"  {# Предполагаемый URL #}
+     style="display: none;">
+</div>
+
+<!-- Модальное окно для сайтов -->
 <div id="modal" class="modal">
   <div class="modal-content">
     <div class="add-container">
@@ -29,30 +41,50 @@
     </div>
 
     <div class="scroll-container">
-      {% for website in websites %}
-      <div class="site-card">
-        <h1 class="card-title">{{ website.name }}</h1>
-        <a class="card-link" href="{{ website.url }}">{{ website.url }}</a>
-      </div>
-      {% empty %}
-      <div class="site-card">
-        <h1 class="card-title">Пока нет добавленных сайтов</h1>
-      </div>
+      {# Группируем особые сайты #}
+      {% regroup websites by is_special as grouped_websites %}
+      {% for group in grouped_websites %}
+        {% if group.grouper %} {# Это особые сайты #}
+          <div class="site-card special-website-group">
+            <img class="preferences-icon" src="{% static 'parser/assets/preferenses_icon.svg' %}" alt="Настройки особых парсеров" id="openSpecialParsersSettingsModal" />
+            <h1 class="card-title">Особые парсеры</h1>
+            <div class="special-websites-list">
+              {% for website in group.list %}
+                <a class="card-link special-website-link" href="{{ website.url }}" target="_blank">{{ website.name }}</a>
+              {% endfor %}
+            </div>
+          </div>
+        {% else %} {# Это обычные сайты #}
+          {% for website in group.list %}
+            <div class="site-card">
+              <img class="delete-website-icon" src="{% static 'parser/assets/trash-can-10416.svg' %}" data-website-id="{{ website.id }}" alt="Удалить сайт" />
+              <h1 class="card-title">{{ website.name }}</h1>
+              <a class="card-link" href="{{ website.url }}">{{ website.url }}</a>
+            </div>
+          {% endfor %}
+        {% endif %}
       {% endfor %}
+
+      {% if not websites %}
+        <div class="site-card">
+          <h1 class="card-title">Пока нет добавленных сайтов</h1>
+        </div>
+      {% endif %}
     </div>
-    <!-- Модальное окно для заполнения сайта -->
-    <div id="insideModal" class="modal">
-      <form class="modal-form" method="POST" action="{% url 'parser:website_create' %}">
+    <!-- Модальное окно для заполнения сайта (добавления нового) -->
+    <div id="insideModal" class="modal" style="display: none;">
+      <form class="modal-form" method="POST" action="{% url 'parser:website_create' %}" id="addSiteForm">
         {% csrf_token %}
-        <input class="form-input" placeholder="Название сайта" name="name" required />
-        <input class="form-input" placeholder="Ссылка на сайт" name="url" required />
-        <button type="submit" class="form-btn" id="agreeBtn">Подтвердить</button>
+        <input class="form-input" placeholder="Название сайта" name="name" id="siteNameInput" required />
+        <input class="form-input" placeholder="Ссылка на сайт" name="url" id="siteUrlInput" required />
+        <div class="loading-indicator" id="loadingIndicator" style="display: none;">Обработка данных...</div>
+        <button type="button" class="form-btn" id="fetchInternshipDataBtn">Получить данные</button>
       </form>
     </div>
   </div>
 
   <!-- Предпросмотр -->
-  <div class="companyContainer" id="companyContainer">
+  <div class="companyContainer" id="companyContainer" style="display: none;">
     <div class="card-content">
       <div class="modal-navigation-btn">
         <img
@@ -66,26 +98,46 @@
       <div class="main-card-container">
         <div class="company-card">
           <div class="company-card__title-container">
-            <input class="card-input title-container__title" placeholder="Название компании">
+            <input class="card-input title-container__title" placeholder="Название компании" id="internshipCompany"> 
           </div>
           <div class="descreption-container">
-            <div class="desc">Должность: <input class="card-input" placeholder="разработчик"></div>
-            <div class="desc desc-date">Период стажировки: с <input class="card-input" type="date"> по <input class="card-input" type="date"></div>  
-            <div class="desc">Технологии: <input class="card-input" type="date" placeholder="Python"></div>
-            <div class="infa-desc">
-              Различная информация о стажировкеРазличная информация о
-              стажировкеРазличная информация о стажировкеРазличная информация
-              о стажировкеРазличная информация о стажировкеРазличная информация о
-              стажировкеРазличная информация о стажировкеРазличная информация
-              о стажировке
-            </div>
+            <div class="desc">Должность: <input class="card-input" placeholder="разработчик" id="internshipPosition"></div>
+            <div class="desc desc-date">Период стажировки: с <input class="card-input" type="date" id="internshipStartDate"> по <input class="card-input" type="date" id="internshipEndDate"></div>  
+            <div class="desc">Технологии: <input class="card-input" placeholder="Python" id="internshipTechnologies"></div> 
+            <textarea class="card-input infa-desc" id="internshipDescription" placeholder="Описание стажировки..."></textarea>
           </div>
         </div>
-        <button class="card-btn">Подтвердить</button>
+        <button class="card-btn" id="confirmAndSaveInternshipBtn">Подтвердить и сохранить</button>
       </div>
     </div>
   </div>
 </div>
+
+<!-- Модальное окно для настроек особых парсеров -->
+<div id="specialParsersSettingsModal" class="modal">
+  <div class="modal-content settings-modal-content">
+    <h2 class="settings-modal-title">Настройки особых парсеров</h2>
+    <form id="specialParsersSettingsForm">
+      <div class="form-group">
+        <label for="keywordsInput">Ключевые слова (через запятую):</label>
+        <textarea id="keywordsInput" class="form-input settings-input settings-textarea" placeholder="java, python, разработчик" rows="3"></textarea>
+      </div>
+      <div class="form-group">
+        <label for="citiesInput">Города (через запятую):</label>
+        <textarea id="citiesInput" class="form-input settings-input settings-textarea" placeholder="москва, екатеринбург" rows="3"></textarea>
+      </div>
+      <div class="loading-indicator" id="specialSettingsLoadingIndicator" style="display: none;">Сохранение...</div>
+      <button type="button" class="form-btn settings-btn" id="saveSpecialParsersSettingsBtn">Сохранить</button>
+    </form>
+  </div>
+</div>
+
+
+{# Кастомное уведомление #}
+<div id="customNotification" class="custom-notification">
+  <span id="customNotificationMessage"></span>
+</div>
+
 {% endblock %}
 
 {% block extra_js %}

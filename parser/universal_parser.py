@@ -16,8 +16,9 @@ class UniversalParser:
     Универсальный парсер для извлечения информации о стажировках с произвольных URL.
     """
 
-    def __init__(self):
-        logger.info("Инициализирован UniversalParser")
+    def __init__(self, url):
+        self.url = url
+        logger.info(f"Инициализирован UniversalParser для URL: {url}")
 
     def fetch_html(self, url):
         """Загружает HTML-контент по указанному URL."""
@@ -289,7 +290,41 @@ class UniversalParser:
 
         logger.info(f"Данные для {url} подготовлены к сохранению: Название='{extracted_data.get('title')}', Компания='{extracted_data.get('company')}'")
         
-        return {k: v for k, v in extracted_data.items() if v is not None}
+        final_data = {
+            'title': extracted_data.get('title'),
+            'company': extracted_data.get('company') or extracted_data.get('company_name'),
+            'description': extracted_data.get('description'),
+            'city': extracted_data.get('city'),
+            'salary': extracted_data.get('salary'),
+            'position': extracted_data.get('position'),
+            'url': url
+        }
+        return {k: v for k, v in final_data.items() if v is not None}
+
+    def extract_data(self):
+        """
+        Загружает HTML, парсит его для извлечения данных о стажировке,
+        но не сохраняет в базу. Возвращает словарь с данными.
+        """
+        if not self.url:
+            logger.error("URL не предоставлен для extract_data")
+            return None
+
+        html_content = self.fetch_html(self.url)
+        if not html_content:
+            logger.error(f"Не удалось загрузить HTML для предварительного парсинга с {self.url}")
+            return None
+
+        logger.info(f"Начинаем предварительный парсинг деталей стажировки с {self.url}")
+        
+        parsed_data = self.parse_internship_details(html_content, self.url)
+
+        if parsed_data:
+            logger.info(f"Данные успешно извлечены (без сохранения) для {self.url}: {list(parsed_data.keys())}")
+            return parsed_data
+        else:
+            logger.warning(f"Не удалось извлечь данные (без сохранения) для {self.url}")
+            return None
 
     def create_or_update_internship(self, internship_data, website):
         """

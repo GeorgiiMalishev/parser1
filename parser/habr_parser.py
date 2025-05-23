@@ -15,7 +15,7 @@ logger = logging.getLogger('parser')
 
 class HabrCareerParser(BaseParser):
     BASE_API_URL = 'https://career.habr.com/api/frontend'
-    BASE_VACANCIES_URL = 'https://career.habr.com'
+    BASE_VACANCIES_URL = 'https://career.habr.com/'
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -154,14 +154,31 @@ class HabrCareerParser(BaseParser):
                     if not existing or (website_obj and InternshipService.should_update_internship(existing)):
                         if basic_data.get('url'):
                             logger.info(f"Загрузка полного описания для вакансии {basic_data.get('title')}...")
-                            description = self.parse_vacancy_details_html(basic_data['url'])
-                            if description:
-                                basic_data['description'] = description
+                            parsed_details = self.parse_vacancy_details_html(basic_data['url'])
+                            
+                            if parsed_details:
+                                if parsed_details.get('description'):
+                                    basic_data['description'] = parsed_details['description']
+                                else:
+                                    logger.warning(f"Не удалось получить описание для вакансии {basic_data.get('title')}. Будет использовано краткое описание.")
+                                    if not basic_data.get('description'): 
+                                        basic_data['description'] = "Описание не найдено"
+
+                                if parsed_details.get('company_name') and not basic_data.get('company'):
+                                    basic_data['company'] = parsed_details['company_name']
+                                    logger.info(f"Название компании '{parsed_details['company_name']}' для вакансии '{basic_data.get('title')}' было взято из HTML.")
+                                elif parsed_details.get('company_name') and basic_data.get('company') and parsed_details.get('company_name') != basic_data.get('company'):
+                                    logger.info(f"Название компании из API ('{basic_data.get('company')}') и HTML ('{parsed_details['company_name']}') для '{basic_data.get('title')}' различаются. Приоритет у API.")
 
                                 all_vacancies.append(basic_data)
                             else:
-                                logger.warning(f"Не удалось получить описание для вакансии {basic_data.get('title')}")
+                                logger.warning(f"Не удалось получить HTML-детали для вакансии {basic_data.get('title')}. Будет использовано краткое описание.")
+                                if not basic_data.get('description'):
+                                    basic_data['description'] = "Описание не найдено"
                                 all_vacancies.append(basic_data)
+                        else:
+                            logger.warning(f"URL не найден для вакансии {basic_data.get('title')}, пропускаем загрузку полного описания.")
+                            all_vacancies.append(basic_data)
                     else:
                         logger.info(f"Пропуск обновления для вакансии {basic_data.get('title')} - обновлена недавно")
 
@@ -187,9 +204,12 @@ class HabrCareerParser(BaseParser):
         html_content = self._make_request(vacancy_url, is_json=False)
         if not html_content:
             logger.error(f"Не удалось загрузить HTML контент для {vacancy_url}")
-            return None
+            return {'description': None, 'company_name': None}
 
         soup = BeautifulSoup(html_content, 'html.parser')
+        parsed_data = {'description': None, 'company_name': None}
+        cleaned_desc_json_ld = None
+        cleaned_desc_html = None
 
         json_ld_scripts = soup.find_all('script', type='application/ld+json')
         for script in json_ld_scripts:
@@ -206,24 +226,77 @@ class HabrCareerParser(BaseParser):
 
                 if job_postings:
                     job_data = job_postings[0]
-                    description_html = job_data.get('description')
-                    if description_html:
-                        logger.info(f"Описание извлечено из JSON-LD для {vacancy_url}")
-                        return self.clean_description(description_html)
+                    company_name_json_ld = job_data.get('hiringOrganization', {}).get('name')
+                    if company_name_json_ld and not parsed_data.get('company_name'):
+                        parsed_data['company_name'] = company_name_json_ld.strip()
+                        logger.info(f"Название компании извлечено из JSON-LD: {parsed_data['company_name']}")
             except Exception as e:
                 logger.warning(f"Ошибка обработки JSON-LD на {vacancy_url}: {e}", exc_info=False)
 
-        description_tag = soup.select_one('div.vacancy-description__text') or \
-                          soup.select_one('.job_show_description__vacancy_description .style-ugc') or \
-                          soup.select_one('div[class*="vacancy-description"]')
+        logger.info(f"Попытка извлечения описания из HTML CSS селекторов для {vacancy_url}")
+        selectors_to_try = [
+            'div[class*="vacancy-description-template"] div[class*="style-ugc"]',
+            'div.vacancy-description__text',
+            'div[class*="vacancy-detail-text__content"]',
+            '.job_show_description__vacancy_description .style-ugc',
+            'div[class*="vacancy-description__vacancy_description"]'
+        ]
+        
+        description_content_tag_html = None
+        found_selector_html = None
+        for selector in selectors_to_try:
+            tag = soup.select_one(selector)
+            if tag:
+                description_content_tag_html = tag
+                found_selector_html = selector
+                logger.info(f"Найден тег для HTML описания с селектором '{selector}' для {vacancy_url}")
+                break
+        
+        if description_content_tag_html:
+            description_html_css = description_content_tag_html.decode_contents()
+            temp_cleaned_html_desc = self.clean_description(description_html_css)
+            if temp_cleaned_html_desc:
+                cleaned_desc_html = temp_cleaned_html_desc
+                logger.info(f"HTML описание найдено и очищено (селектор: '{found_selector_html}') для {vacancy_url} (длина: {len(cleaned_desc_html)})")
+            else:
+                logger.warning(f"HTML описание (селектор: '{found_selector_html}') для {vacancy_url} стало пустым после очистки.")
+        else:
+            logger.warning(f"Не удалось найти тег с HTML описанием с помощью CSS селекторов для {vacancy_url}")
 
-        if description_tag:
-            description_html = description_tag.decode_contents()
-            logger.info(f"Описание извлечено с использованием CSS селектора для {vacancy_url}")
-            return self.clean_description(description_html)
+        final_description = None
+        json_ld_len = len(cleaned_desc_json_ld) if cleaned_desc_json_ld else 0
+        html_len = len(cleaned_desc_html) if cleaned_desc_html else 0
+        MIN_FULL_DESC_LENGTH = 300
 
-        logger.warning(f"Не удалось извлечь описание для {vacancy_url} известными методами.")
-        return "Описание не найдено"
+        if json_ld_len >= MIN_FULL_DESC_LENGTH:
+            final_description = cleaned_desc_json_ld
+            logger.info(f"Выбрано описание из JSON-LD (длина {json_ld_len} >= {MIN_FULL_DESC_LENGTH}).")
+        elif html_len >= MIN_FULL_DESC_LENGTH:
+            final_description = cleaned_desc_html
+            logger.info(f"Выбрано описание из HTML (длина {html_len} >= {MIN_FULL_DESC_LENGTH}), т.к. JSON-LD был короче или отсутствовал.")
+        elif json_ld_len > 0 and json_ld_len >= html_len:
+            final_description = cleaned_desc_json_ld
+            logger.info(f"Выбрано короткое описание из JSON-LD (длина {json_ld_len}), т.к. оно длиннее или равно HTML (длина {html_len}) или HTML отсутствует.")
+        elif html_len > 0:
+            final_description = cleaned_desc_html
+            logger.info(f"Выбрано короткое описание из HTML (длина {html_len}), т.к. JSON-LD короче или отсутствует.")
+        
+        parsed_data['description'] = final_description
+
+        if not parsed_data.get('company_name'):
+            company_tag_html = soup.select_one('.company_name.company_name--with-icon')
+            if company_tag_html:
+                parsed_data['company_name'] = company_tag_html.text.strip()
+                logger.info(f"Название компании извлечено из HTML: {parsed_data['company_name']}")
+
+        if not parsed_data.get('description'):
+            parsed_data['description'] = "Описание не найдено"
+            logger.warning(f"Итоговое описание для {vacancy_url} не найдено, установлено значение по умолчанию.")
+        
+        if not parsed_data.get('company_name'):
+             logger.warning(f"Итоговое название компании для {vacancy_url} не найдено.")
+
+        return parsed_data
 
     def convert_to_internship_data(self, vacancy_item, full_description=None):
         try:
@@ -275,12 +348,8 @@ class HabrCareerParser(BaseParser):
                     employment_text = "удаленно"
             data['employment_type'] = self._map_employment_type(employment_text)
 
-            published_at = vacancy_item.get('published_at')
-            if published_at:
-                try:
-                    data['selection_start_date'] = datetime.fromisoformat(published_at.replace('Z', '+00:00')).date()
-                except (ValueError, TypeError) as e:
-                    logger.warning(f"Ошибка преобразования даты публикации '{published_at}': {e}")
+            data['selection_start_date'] = None
+            data['selection_end_date'] = None
 
             if full_description:
                 data['description'] = full_description

@@ -135,7 +135,7 @@ class FetchHabrInternshipsAPIView(APIView):
             
             habr_website, created = Website.objects.get_or_create(
                 name="Habr Career",
-                url="https://career.habr.com",
+                url="https://career.habr.com/",
             )
             
             import threading
@@ -592,8 +592,8 @@ class FetchAllInternshipsAPIView(APIView):
 
 
 class ParseUniversalURLAPIView(APIView):
-    """API endpoint для парсинга стажировки с произвольного URL"""
-
+    """API endpoint для запуска задачи парсинга по URL."""
+    
     @extend_schema(
         description="Запуск задачи парсинга стажировки по указанному URL.",
         request={
@@ -632,52 +632,122 @@ class ParseUniversalURLAPIView(APIView):
         }
     )
     def post(self, request):
-        """Запуск задачи парсинга стажировки по URL"""
+        """Запуск задачи парсинга URL."""
         url = request.data.get('url')
-
         if not url:
-            return Response({
-                'status': 'error',
-                'message': 'Параметр "url" обязателен.'
-            }, status=status.HTTP_400_BAD_REQUEST)
-
-        if not url.startswith('http://') and not url.startswith('https://'):
-             return Response({
-                'status': 'error',
-                'message': 'Некорректный формат URL.'
-            }, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'error': 'URL is required'}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            logger.info(f"Запуск парсинга URL: {url} в отдельном потоке")
-
+            logger.info(f"Выполнение парсинга URL {url} в многопоточном режиме")
+            
             thread = threading.Thread(target=self._run_universal_parser, args=(url,))
             thread.daemon = True
             thread.start()
-
+            
             return Response({
-                'status': 'success',
-                'message': f'Задача парсинга URL {url} запущена.'
+                'status': 'success', 
+                'message': 'Задача парсинга URL запущена.'
             }, status=status.HTTP_202_ACCEPTED)
-
+                
         except Exception as e:
-            logger.error(f"Ошибка при запуске задачи парсинга URL {url}: {e}", exc_info=True)
+            logger.error(f"Ошибка при парсинге URL {url}: {e}", exc_info=True)
             return Response({
-                'status': 'error',
-                'message': 'Произошла внутренняя ошибка сервера при запуске задачи.'
+                'status': 'error', 
+                'message': 'Произошла внутренняя ошибка сервера при парсинге URL.'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
+    
     def _run_universal_parser(self, url):
-        """Выполнение парсинга URL в отдельном потоке"""
+        """Выполнение парсинга URL в отдельном потоке."""
         try:
-            parser = UniversalParser()
-            internship, created = parser.process_url(url)
-            if internship:
-                 status_msg = "создана" if created else "обновлена/найдена"
-                 logger.info(f"Парсинг URL {url} завершен. Стажировка '{internship.title}' {status_msg}.")
-            else:
-                 logger.warning(f"Парсинг URL {url} завершен, но стажировка не была создана или найдена.")
+            parser = UniversalParser(url)
+            parser.parse()
+            logger.info(f"Успешно спарсен и сохранен URL: {url}")
         except Exception as e:
-            logger.error(f"Ошибка при выполнении задачи парсинга URL {url}: {e}", exc_info=True)
+            logger.error(f"Ошибка при выполнении парсинга URL {url}: {e}", exc_info=True)
+
+
+class PreviewInternshipAPIView(APIView):
+    """
+    API endpoint для предварительного парсинга URL и получения данных стажировки.
+    Не сохраняет данные в базу, а только возвращает их.
+    """
+    @extend_schema(
+        description="Предварительный парсинг URL для извлечения данных стажировки.",
+        request={
+            'application/json': {
+                'type': 'object',
+                'properties': {
+                    'url': {'type': 'string', 'format': 'url'}
+                },
+                'required': ['url']
+            }
+        },
+        examples=[
+            OpenApiExample(
+                'Пример запроса',
+                summary='Запрос на предварительный парсинг стажировки с example.com',
+                value={'url': 'https://example.com/internship-details'}
+            ),
+        ],
+        responses={
+            200: InternshipSerializer,
+            400: {
+                "description": "Неверный запрос (например, отсутствует URL или URL некорректен)",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "error": {"type": "string"}
+                            }
+                        }
+                    }
+                }
+            },
+            500: {
+                "description": "Внутренняя ошибка сервера или ошибка парсинга",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "error": {"type": "string"},
+                                "details": {"type": "string", "nullable": True}
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    )
+    def post(self, request):
+        """
+        Обрабатывает POST-запрос с URL, парсит его и возвращает данные стажировки.
+        """
+        url = request.data.get('url')
+        if not url:
+            return Response({'error': 'URL is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            logger.info(f"Запрос на предварительный парсинг URL: {url}")
+            parser = UniversalParser(url)
+            internship_data = parser.extract_data()
+
+            if not internship_data:
+                logger.warning(f"Не удалось извлечь данные для URL: {url}")
+                return Response(
+                    {'error': 'Не удалось извлечь данные по указанному URL.'},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+
+            return Response(internship_data, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            logger.error(f"Ошибка при предварительном парсинge URL {url}: {e}", exc_info=True)
+            return Response(
+                {'error': 'Произошла ошибка при парсинге URL.', 'details': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
 
 @api_view(['POST'])
@@ -772,7 +842,7 @@ def _run_parsers_in_thread(params):
         
         habr_website, _ = Website.objects.get_or_create(
             name="Habr Career",
-            url="https://career.habr.com",
+            url="https://career.habr.com/",
         )
         
         superjob_website, _ = Website.objects.get_or_create(

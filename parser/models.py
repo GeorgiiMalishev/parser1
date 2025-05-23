@@ -3,10 +3,11 @@ from django.utils import timezone
 import hashlib
 
 class Website(models.Model):
-    name = models.CharField(max_length=100, verbose_name="Название сайта")
+    name = models.CharField(max_length=100, verbose_name="Название сайта", unique=True)
     url = models.URLField(verbose_name="Ссылка на сайт")
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Дата добавления")
     updated_at = models.DateTimeField(auto_now=True, verbose_name="Дата обновления")
+    is_special = models.BooleanField(default=False, verbose_name="Особый сайт")
 
     def __str__(self):
         return self.name

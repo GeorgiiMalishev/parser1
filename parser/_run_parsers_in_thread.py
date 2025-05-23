@@ -43,12 +43,12 @@ def _run_parsers_in_thread(params):
         
         hh_website, _ = Website.objects.get_or_create(
             name="HeadHunter",
-            url="https://hh.ru",
+            url="https://hh.ru/",
         )
         
         habr_website, _ = Website.objects.get_or_create(
             name="Habr Career",
-            url="https://career.habr.com",
+            url="https://career.habr.com/",
         )
         
         superjob_website, _ = Website.objects.get_or_create(

@@ -1,0 +1,37 @@
+.custom-notification {
+  position: fixed;
+  top: 20px; /* Перемещаем вверх */
+  right: 20px; /* В правый угол */
+  left: auto; /* Убираем центрирование по горизонтали */
+  transform: translateX(0); /* Убираем центрирование по горизонтали */
+  padding: 15px 25px;
+  border-radius: 20px; /* Более скругленные углы, как у кнопок */
+  color: #FFFFFF; /* Явный белый цвет текста */
+  font-family: 'Montserrat', sans-serif; /* Шрифт как в приложении */
+  font-size: 18px; /* Немного увеличим шрифт */
+  font-weight: bold; /* Делаем текст жирным */
+  z-index: 10000;
+  display: none;
+  box-shadow: 0px 4px 10px 0px rgb(87, 147, 146); /* Тень как у основного контейнера */
+  transition: opacity 0.3s, transform 0.3s; /* Более быстрая анимация */
+  max-width: 400px; /* Ограничим ширину */
+  text-align: center;
+}
+
+.custom-notification.show {
+  display: block;
+  opacity: 1;
+  transform: translateX(0) translateY(0); /* Плавное появление на месте */
+}
+
+/* Убираем анимацию изменения bottom, т.к. теперь top */
+
+.custom-notification.success {
+  background-color: rgb(4, 2, 30); /* Темно-синий фон, как у кнопок */
+  border: 1px solid rgb(182, 242, 255); /* Светло-голубая рамка */
+}
+
+.custom-notification.error {
+  background-color: #D32F2F; /* Более темный красный для ошибок */
+  border: 1px solid #FFCDD2; /* Светло-красная рамка */
+} 

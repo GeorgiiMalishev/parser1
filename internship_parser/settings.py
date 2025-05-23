@@ -157,6 +157,10 @@ LOGGING = {
             'format': '{levelname} {asctime} {name} {funcName} {lineno:d} {message}',
             'style': '{',
         },
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {process:d} {thread:d} {message}',
+            'style': '{',
+        },
     },
     'handlers': {
         'console': {
@@ -164,43 +168,41 @@ LOGGING = {
             'class': 'logging.StreamHandler',
             'formatter': 'simple',
         },
-        'file_parser_main': { # Обработчик для основного лог-файла парсера
-            'level': 'INFO',
-            'class': 'logging.FileHandler',
-            'filename': os.path.join(BASE_DIR, 'logs/parser.log'), # Основной лог-файл
-            'formatter': 'simple',
-            'encoding': 'utf-8',
-        },
-        'file_debug': { # Отдельный файл для всех DEBUG логов, чтобы не засорять основной parser.log, если нужно
+        'file_parser_main': {
             'level': 'DEBUG',
             'class': 'logging.FileHandler',
-            'filename': os.path.join(BASE_DIR, 'logs/debug.log'), # Другой файл
+            'filename': os.path.join(BASE_DIR, 'logs/parser.log'),
             'formatter': 'simple',
             'encoding': 'utf-8',
         },
     },
     'loggers': {
-        'parser': {
-            'handlers': ['console', 'file_parser_main', 'file_debug'],
+        '': {  # Корневой логгер для всех модулей
+            'handlers': ['console', 'file_parser_main'],
             'level': 'DEBUG',
-            'propagate': False,
-        },
-        'parser.superjob_parser': { # Явно добавляем для теста
-            'handlers': ['console', 'file_parser_main', 'file_debug'],
-            'level': 'DEBUG',
-            'propagate': False,
+            'propagate': True,
         },
         'django': {
-            'handlers': ['console'], # Django логи можно оставить только в консоли или в отдельном файле
+            'handlers': ['console', 'file_parser_main'],
             'level': 'INFO',
             'propagate': False,
         },
+        'django.server': {
+            'handlers': ['console', 'file_parser_main'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'django.request': {
+            'handlers': ['console', 'file_parser_main'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'parser': {
+            'handlers': ['console', 'file_parser_main'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
     },
-    # Можно не использовать root, если для всех нужных логгеров явно указаны обработчики и propagate=False
-    # 'root': {
-    # 'handlers': ['console', 'file_debug'],
-    # 'level': 'DEBUG',
-    # },
 }
 
 os.makedirs(os.path.join(BASE_DIR, 'logs'), exist_ok=True)

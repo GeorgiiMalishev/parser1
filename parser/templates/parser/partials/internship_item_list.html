@@ -1,0 +1,31 @@
+{% load static %}
+{% for internship in internships %}
+<div class="company-card" data-internship-id="{{ internship.id }}">
+  <div class="company-card__title-container">
+    <h3 class="title-container__title">{{ internship.company }}</h3>
+    <button class="delete-internship-btn" data-internship-id="{{ internship.id }}">
+      <img src="{% static 'parser/assets/trash-can-10416.svg' %}" alt="Удалить" />
+    </button>
+  </div>
+  <div class="descreption-container">
+    <p>Должность: <span>{{ internship.position }}</span></p>
+    <p>Период стажировки: <span>{% if internship.selection_start_date %}с {{ internship.selection_start_date|date:"d.m.Y" }}{% endif %} {% if internship.selection_end_date %}по {{ internship.selection_end_date|date:"d.m.Y" }}{% endif %}</span></p>
+    <p>Технологии: <span>{{ internship.keywords }}</span></p>
+    <p>Источник: <a href="{{ internship.url }}" target="_blank">{{ internship.url }}</a></p>
+    <div class="infa-desc">
+      {{ internship.description }}
+    </div>
+  </div>
+</div>
+{% empty %}
+{% if not page_obj or page_obj.number == 1 %}
+  <div class="company-card">
+    <div class="company-card__title-container">
+      <h3 class="title-container__title">Нет доступных стажировок</h3>
+    </div>
+    <div class="descreption-container">
+      <p>Попробуйте изменить параметры фильтра или вернитесь позже.</p>
+    </div>
+  </div>
+{% endif %}
+{% endfor %}

@@ -330,13 +330,6 @@ class HeadHunterAPI(BaseParser):
                 city = vacancy.get('area', {}).get('name')
             selection_start_date = None
             selection_end_date = None
-            if vacancy.get('published_at'):
-                try:
-                    published_date = datetime.fromisoformat(vacancy.get('published_at').replace('Z', '+00:00'))
-                    selection_start_date = published_date.date()
-                    selection_end_date = (published_date + timedelta(days=30)).date()
-                except (ValueError, TypeError):
-                    pass
             salary = None
             if vacancy.get('salary'):
                 if vacancy.get('salary').get('from') and vacancy.get('salary').get('to'):

@@ -95,7 +95,7 @@ main {
   display: flex;
   flex-direction: column;
   width: 100%;
-  gap: 49px;
+  gap: 30px;
   align-items: center;
   justify-content: center;
 }
@@ -108,7 +108,7 @@ main {
   padding: 12px 10px 11px 20px;
   font-size: 36px;
   font-weight: 400;
-  margin-bottom: 92px;
+  margin-bottom: 20px;
 }
 .form-input::placeholder {
   color: rgba(195, 195, 195, 0.8);
@@ -131,7 +131,8 @@ main {
   text-align: center;
   display: block;
   margin-bottom: 46px;
-  margin-left: 220px;
+  margin-left: auto;
+  margin-right: auto;
 }
 .page-route {
   text-decoration: none;
@@ -185,22 +186,46 @@ main {
   box-shadow: 0px 5px 4px 0px rgb(101, 140, 144);
 }
 .descreption-container {
-  margin-top: 47px;
+  margin-top: 20px;
   padding-left: 20px;
+  padding-right: 20px;
   display: flex;
   flex-direction: column;
-  gap: 50px;
+  gap: 20px;
+  height: calc(100% - 160px);
+  overflow-y: auto;
 }
 .infa-desc {
   font-family: Montserrat;
-  font-size: 36px;
+  font-size: 28px;
   font-weight: 400;
   text-align: left;
   color: rgb(0, 0, 0);
-  overflow: hidden;
-  width: 878px;
-  white-space: nowrap;
-  text-overflow: ellipsis;
+  overflow: auto;
+  width: 100%;
+  white-space: pre-wrap;
+  text-overflow: initial;
+  min-height: 100px;
+  resize: vertical;
+  padding: 10px;
+  box-sizing: border-box;
+  border: 1px solid rgb(204, 204, 204);
+  border-radius: 5px;
+}
+.infa-desc::placeholder {
+  color: rgba(195, 195, 195, 0.8);
+}
+/* Стили для скроллбара в .descreption-container */
+.descreption-container::-webkit-scrollbar {
+  width: 8px;
+}
+.descreption-container::-webkit-scrollbar-thumb {
+  border-radius: 10px;
+  background: rgb(101, 140, 144);
+}
+.descreption-container::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 10px;
 }
 span {
   color: rgb(101, 140, 144);
@@ -259,4 +284,180 @@ span {
   align-items: center;
   justify-content: center;
   padding: 16px 118px 17px 115px;
+}
+.site-card {
+  position: relative;
+  background-color: #f9f9f9;
+  padding: 15px;
+  margin-bottom: 10px;
+  border: 1px solid #ddd;
+  border-radius: 5px;
+}
+
+#modal .site-card .card-title {
+  display: block;
+  width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0 0 5px 0; /* Небольшой отступ снизу для заголовка H1 */
+  padding-right: 45px; /* Изменено для отступа от иконки 36px */
+  box-sizing: border-box; /* Добавлено для корректной работы width: 100% с padding */
+}
+
+#modal .site-card .card-link {
+  display: block;
+  width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding-right: 45px; /* Изменено для отступа от иконки 36px */
+  box-sizing: border-box; /* Добавлено для корректной работы width: 100% с padding */
+}
+
+.special-website {
+  border: 4px solid gold !important;
+  position: relative;
+}
+.delete-website-icon {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  left: auto;
+  width: 36px; /* Изменено с 24px */
+  height: 36px; /* Изменено с 24px */
+  cursor: pointer;
+  z-index: 1;
+}
+
+/* Стили для группы особых сайтов */
+.special-website-group {
+  border: 4px solid gold; /* Увеличиваем толщину рамки */
+  padding: 15px;
+  margin-bottom: 10px;
+  border-radius: 5px;
+  position: relative;
+}
+
+.special-website-group .card-title {
+  margin-bottom: 10px; /* Отступ для заголовка группы */
+}
+
+.special-websites-list {
+  display: flex;
+  flex-direction: column;
+  gap: 5px; /* Отступ между ссылками на особые сайты */
+  padding-right: 45px; /* Изменено для отступа от иконки настроек 36px */
+  box-sizing: border-box; /* Добавлено для корректной работы с отступом */
+}
+
+.special-website-link {
+  font-size: 0.9em; /* Меньший шрифт для ссылок внутри группы */
+  color: #555;
+}
+
+.preferences-icon {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 36px; /* Устанавливаем размер 36px для единообразия */
+  height: 36px; /* Устанавливаем размер 36px для единообразия */
+  cursor: pointer;
+  z-index: 1;
+}
+
+/* Стили для модального окна настроек */
+#specialParsersSettingsModal .modal-content {
+  background-color: #fff; /* Фон как у основного модального окна */
+  margin: 10% auto; /* Центрирование */
+  padding: 20px; /* Внутренние отступы */
+  border-radius: 10px; /* Скругление углов */
+  width: 966px; /* Ширина как у #insideModal */
+  max-width: 966px; /* Ограничение максимальной ширины */
+  height: fit-content; /* Высота по содержимому, как у #insideModal */
+  /* position: relative; - уже есть у .modal-content */
+  /* z-index: 2000; - управляется #specialParsersSettingsModal */
+  /* transform: translate(-50%, -50%); - не нужно, т.к. margin auto и позиционирование модалки */
+  background: rgba(4, 2, 30, 0.7); /* Фон как у #insideModal */
+  padding: 44px 31px 46px 25px; /* Паддинги как у #insideModal */
+  border-radius: 5px; /* Радиус как у #insideModal */
+  box-sizing: border-box; /* Для корректного учета padding в ширине */
+}
+
+#specialParsersSettingsModal .settings-modal-title {
+  text-align: center;
+  margin-bottom: 30px; /* Отступ как у .modal-form gap */
+  font-family: Montserrat; /* Шрифт как у инпутов */
+  font-size: 36px; /* Размер шрифта как у .form-input placeholder */
+  font-weight: 400; /* Насыщенность как у .form-input placeholder */
+  color: rgb(255, 255, 255); /* Цвет текста для темного фона */
+}
+
+#specialParsersSettingsForm .form-group {
+  margin-bottom: 30px; /* Отступ как у .modal-form gap */
+}
+
+#specialParsersSettingsForm label {
+  display: block;
+  margin-bottom: 10px; /* Небольшой отступ для label */
+  font-family: Montserrat;
+  font-size: 24px; /* Размер поменьше для label */
+  font-weight: 400;
+  color: rgb(255, 255, 255); /* Цвет текста для темного фона */
+}
+
+#specialParsersSettingsForm .settings-input {
+  width: 100%; /* Ширина на весь контейнер */
+  /* height: 67px; - убираем фиксированную высоту для textarea */
+  border: none;
+  border-radius: 20px !important; /* Убедимся, что радиус применяется ко всем углам, возможно !important поможет */
+  background: rgb(255, 255, 255); /* Фон как у .form-input */
+  padding: 12px 10px 11px 20px; /* Паддинги как у .form-input */
+  font-size: 24px; /* Уменьшим шрифт для textarea для лучшей читаемости */
+  font-weight: 400;
+  margin-bottom: 0; /* Убираем лишний margin, т.к. есть gap у form-group */
+  box-sizing: border-box;
+  line-height: 1.4; /* Улучшаем читаемость для многострочного текста */
+  resize: vertical; /* Позволяем пользователю изменять высоту textarea */
+  /* overflow: auto;  - Для textarea это обычно включено по умолчанию, если текст не помещается */
+}
+
+#specialParsersSettingsForm .settings-textarea {
+    min-height: 100px; /* Минимальная высота для textarea, соответствует примерно 4-5 строкам */
+    border-radius: 20px !important; /* Добавляем радиус и сюда на всякий случай */
+    /* Если .settings-input уже имеет !important, это может быть излишним, но для теста */
+}
+
+#specialParsersSettingsForm .settings-input::placeholder {
+  color: rgba(195, 195, 195, 0.8);
+  font-family: Montserrat;
+  font-weight: 400;
+  text-align: left;
+  font-size: 24px; /* Размер шрифта как у .form-input placeholder, но для textarea он уже 24px */
+}
+
+#specialParsersSettingsForm .settings-btn {
+  border-radius: 5px; /* Радиус как у .form-btn */
+  width: 525px; /* Ширина как у .form-btn */
+  height: 60px; /* Высота как у .form-btn */
+  background: rgb(182, 242, 255); /* Фон как у .form-btn */
+  color: rgb(0, 0, 0); /* Цвет текста как у .form-btn */
+  font-family: Montserrat;
+  font-size: 32px; /* Размер шрифта как у .form-btn */
+  font-weight: 400;
+  line-height: normal; /* Уберем line-height, если он мешает */
+  text-align: center;
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+  margin-bottom: 0; /* Убираем лишний отступ, если кнопка последняя */
+  margin-top: 10px; /* Отступ сверху */
+}
+
+/* Стили для loading indicator в модальном окне настроек */
+#specialParsersSettingsModal .loading-indicator {
+  color: white; /* Чтобы текст был виден на темном фоне */
+  font-size: 20px;
+  text-align: center;
+  padding: 10px;
 }

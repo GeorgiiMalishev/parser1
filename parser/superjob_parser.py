@@ -242,15 +242,6 @@ class SuperJobParser(BaseParser):
 
             selection_start_date = None
             selection_end_date = None
-            if vacancy.get('date_published'):
-                try:
-                    published_timestamp = vacancy.get('date_published')
-                    published_date = datetime.fromtimestamp(published_timestamp)
-                    selection_start_date = published_date.date()
-                    selection_end_date = (published_date + timedelta(days=30)).date()
-                except (ValueError, TypeError):
-                    logger.warning(f"Не удалось распарсить дату публикации для вакансии SJ {vacancy.get('id')}")
-                    pass
 
             salary_str = None
             payment_from = vacancy.get('payment_from', 0)
