@@ -8,6 +8,7 @@ from html_text import extract_text
 
 from .models import Internship, Website
 from .llm_utils import parse_with_openrouter 
+from .constants import TECH_KEYWORDS
 
 logger = logging.getLogger(__name__)
 
@@ -261,6 +262,7 @@ class UniversalParser:
             'city': self._normalize_text(llm_extracted_data.get('city')),
             'external_id': None, 
             'is_archived': False, 
+            'keywords': [],
         }
 
         if not extracted_data.get('position') or extracted_data.get('position') == extracted_data.get('title'):
@@ -279,6 +281,35 @@ class UniversalParser:
         extracted_data['salary'] = str(extracted_data.get('salary', ''))[:100] if extracted_data.get('salary') else None
         extracted_data['city'] = str(extracted_data.get('city', ''))[:100] if extracted_data.get('city') else None
         extracted_data['duration'] = str(extracted_data.get('duration', ''))[:100] if extracted_data.get('duration') else None
+        
+        found_keywords = set()
+
+        texts_to_search_in = []
+        if clean_text:
+            texts_to_search_in.append(clean_text.lower())
+        
+        llm_title = extracted_data.get('title')
+        if llm_title:
+            texts_to_search_in.append(str(llm_title).lower())
+        
+        llm_description = extracted_data.get('description')
+        if llm_description:
+            texts_to_search_in.append(str(llm_description).lower())
+
+        if not texts_to_search_in:
+            logger.info(f"Нет текста для поиска ключевых слов для {url}")
+        else:
+            for text_segment in texts_to_search_in:
+                for tech_keyword in TECH_KEYWORDS:
+                    pattern = r'\b' + re.escape(tech_keyword) + r'\b'
+                    try:
+                        if re.search(pattern, text_segment):
+                            found_keywords.add(tech_keyword)
+                    except re.error as e:
+                        logger.warning(f"Ошибка регулярного выражения для ключевого слова '{tech_keyword}': {e}")
+                            
+        extracted_data['keywords'] = sorted(list(found_keywords))
+
         if extracted_data.get('description'):
             extracted_data['description'] = '\n'.join(line for line in str(extracted_data['description']).splitlines() if line.strip())
         else:
@@ -297,7 +328,8 @@ class UniversalParser:
             'city': extracted_data.get('city'),
             'salary': extracted_data.get('salary'),
             'position': extracted_data.get('position'),
-            'url': url
+            'url': url,
+            'technologies': extracted_data.get('keywords'),
         }
         return {k: v for k, v in final_data.items() if v is not None}
 
