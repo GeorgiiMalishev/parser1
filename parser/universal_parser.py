@@ -275,9 +275,9 @@ class UniversalParser:
              
     
 
-        extracted_data['title'] = str(extracted_data.get('title', ''))[:255] if extracted_data.get('title') else 'Заголовок не извлечен'
-        extracted_data['company'] = str(extracted_data.get('company', ''))[:100] if extracted_data.get('company') else None
-        extracted_data['position'] = str(extracted_data.get('position', ''))[:200] if extracted_data.get('position') else extracted_data['title']
+        extracted_data['title'] = str(extracted_data.get('title', '')) if extracted_data.get('title') else 'Заголовок не извлечен'
+        extracted_data['company'] = str(extracted_data.get('company', '')) if extracted_data.get('company') else None
+        extracted_data['position'] = str(extracted_data.get('position', '')) if extracted_data.get('position') else extracted_data.get('title')
         extracted_data['salary'] = str(extracted_data.get('salary', ''))[:100] if extracted_data.get('salary') else None
         extracted_data['city'] = str(extracted_data.get('city', ''))[:100] if extracted_data.get('city') else None
         extracted_data['duration'] = str(extracted_data.get('duration', ''))[:100] if extracted_data.get('duration') else None

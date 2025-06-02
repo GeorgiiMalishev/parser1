@@ -29,7 +29,17 @@ SECRET_KEY = 'django-insecure-mo8u+58b1hnhv%c&l-)35$z7cjvp)p=0)h2mh5i-v3&_lu5p!-
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['51.250.51.104']
+ALLOWED_HOSTS = [
+    '51.250.51.104',
+    'localhost',
+    '127.0.0.1',
+    'ipv4-internet.yandex.net',
+    'whsforme.online',
+    'api.ipify.org',
+    'www.shadowserver.org',
+    'packetsdatabase.com',
+    '4497ae333aaa',
+]
 
 
 # Application definition
@@ -169,7 +179,7 @@ LOGGING = {
             'formatter': 'simple',
         },
         'file_parser_main': {
-            'level': 'DEBUG',
+            'level': 'INFO',
             'class': 'logging.FileHandler',
             'filename': os.path.join(BASE_DIR, 'logs/parser.log'),
             'formatter': 'simple',
@@ -178,27 +188,27 @@ LOGGING = {
     },
     'loggers': {
         '': { 
-            'handlers': ['console', 'file_parser_main'],
+            'handlers': ['file_parser_main'],
             'level': 'DEBUG',
             'propagate': True,
         },
         'django': {
-            'handlers': ['console', 'file_parser_main'],
+            'handlers': ['file_parser_main'],
             'level': 'INFO',
             'propagate': False,
         },
         'django.server': {
-            'handlers': ['console', 'file_parser_main'],
+            'handlers': ['file_parser_main'],
             'level': 'INFO',
             'propagate': False,
         },
         'django.request': {
-            'handlers': ['console', 'file_parser_main'],
+            'handlers': ['file_parser_main'],
             'level': 'INFO',
             'propagate': False,
         },
         'parser': {
-            'handlers': ['console', 'file_parser_main'],
+            'handlers': ['file_parser_main'],
             'level': 'DEBUG',
             'propagate': False,
         },

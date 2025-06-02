@@ -28,9 +28,9 @@ class Internship(models.Model):
 
     external_id = models.CharField(max_length=255, verbose_name="Идентификатор стажировки", blank=True, null=True)
 
-    title = models.CharField(max_length=255, verbose_name="Название стажировки")
-    company = models.CharField(max_length=100, verbose_name="Название компании")
-    position = models.CharField(max_length=200, verbose_name="Название должности")
+    title = models.TextField(verbose_name="Название стажировки")
+    company = models.TextField(verbose_name="Название компании")
+    position = models.TextField(verbose_name="Название должности")
     salary = models.CharField(max_length=100, verbose_name="Заработная плата", blank=True, null=True)
 
     selection_start_date = models.DateField(verbose_name="Дата начала отбора", blank=True, null=True)

@@ -219,8 +219,11 @@ class InternshipListView(ListView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs) 
         if not context.get('page_obj'):
-            logger.error("InternshipListView: page_obj not found in context after super().get_context_data(). Pagination might be broken.")
-
+            paginator = context.get('paginator')
+            if paginator is None:
+                logger.error("InternshipListView: Neither page_obj nor paginator found in context. Pagination is not working.")
+            else:
+                logger.error(f"InternshipListView: page_obj not found, but paginator is present (paginator.num_pages: {paginator.num_pages}, paginator.count: {paginator.count}). Queryset might be empty or page number out of range.")
 
         context['filter_form'] = InternshipFilterForm(self.request.GET)
         
@@ -237,16 +240,16 @@ class InternshipListView(ListView):
     def render_to_response(self, context, **response_kwargs):
         page_obj_for_ajax = context.get('page_obj')
 
-        if not page_obj_for_ajax and self.request.headers.get('x-requested-with') == 'XMLHttpRequest':
-             logger.error("InternshipListView (AJAX): page_obj is missing in context! Returning empty response for AJAX.")
-             return JsonResponse({'html': '', 'has_next': False}, status=500)
-
         if self.request.headers.get('x-requested-with') == 'XMLHttpRequest':
+            if not page_obj_for_ajax:
+                logger.warning("InternshipListView (AJAX): page_obj is missing in context! Returning empty list for AJAX.")
+                return JsonResponse({'html': '', 'has_next': False})
+            
             html = render_to_string(
                 'parser/partials/internship_item_list.html',
-                {'internships': page_obj_for_ajax.object_list if page_obj_for_ajax else [], 'page_obj': page_obj_for_ajax}
+                {'internships': page_obj_for_ajax.object_list, 'page_obj': page_obj_for_ajax}
             )
-            return JsonResponse({'html': html, 'has_next': page_obj_for_ajax.has_next() if page_obj_for_ajax else False})
+            return JsonResponse({'html': html, 'has_next': page_obj_for_ajax.has_next()})
         
         return super().render_to_response(context, **response_kwargs)
 
