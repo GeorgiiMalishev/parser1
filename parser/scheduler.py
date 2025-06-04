@@ -14,14 +14,6 @@ def start_scheduler():
     scheduler.add_jobstore(DjangoJobStore(), "default")
 
     scheduler.add_job(
-        parse_all_internships,
-        'interval',
-        hours=settings.PARSER_RUN_INTERVAL // 3600,
-        id='parse_all_internships',
-        replace_existing=True
-    )
-
-    scheduler.add_job(
         update_saved_search_queries,
         'interval',
         hours=24,
